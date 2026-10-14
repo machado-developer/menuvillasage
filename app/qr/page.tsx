@@ -10,7 +10,8 @@ export const metadata: Metadata = {
     type: "website",
   },
   twitter: { card: "summary" },
-  robots: { index: false },
+  alternates: { canonical: "/qr" },
+  robots: { index: false, follow: true },
 };
 
 export default function Page() {
