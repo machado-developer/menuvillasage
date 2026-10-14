@@ -5,6 +5,13 @@ import peixes from "@/assets/peixes.jpg";
 import pequenoAlmoco from "@/assets/pequeno-almoco.jpg";
 import sobremesas from "@/assets/sobremesas.jpg";
 import bebidas from "@/assets/bebidas.jpg";
+import lagostaGrelhada from "@/assets/villasage/177ee6b8-fb2c-48c7-bad2-97275c2fe22f.jpeg";
+import frangoGrelhado from "@/assets/villasage/31b5b794-6061-4839-90c4-4b6a78623c00.jpeg";
+import bifeLombo from "@/assets/villasage/337ea99e-f8f8-4e7f-af2c-0f2281c82c0c.jpeg";
+import sangria from "@/assets/villasage/8f69b537-af1f-461c-b1af-af0c6168489f.jpeg";
+import sobremesaChocolate from "@/assets/villasage/923f0577-59d3-4756-85af-92be88ef03c6.jpeg";
+import gambas from "@/assets/villasage/a72f663e-7e6d-4b15-970d-ad2270b4b9b9.jpeg";
+import hamburguer from "@/assets/villasage/e870dc12-7c86-4dbd-8217-4f47eb0effa5.jpeg";
 import type { StaticImageData } from "next/image";
 
 export const WHATSAPP_NUMBER = "244931544912";
@@ -12,7 +19,7 @@ export const WHATSAPP_DISPLAY = "+244 931 544 912";
 export const ADDRESS = "Morro dos Veados, entrada do Matadouro, Benfica, Angola";
 
 export type Variant = { label: string; price: number };
-export type MenuItem = { id: string; name: string; description?: string; price?: number; variants?: Variant[] };
+export type MenuItem = { id: string; name: string; description?: string; price?: number; variants?: Variant[]; image?: StaticImageData };
 export type Category = { id: string; name: string; group: "Comida" | "Bebidas"; image?: StaticImageData; note?: string; items: MenuItem[] };
 
 // Each line: "Nome|preço|descrição opcional"
@@ -263,6 +270,23 @@ Rémy Martin (V.S.O.P)|17950
 Calvet (X.O)|29300
 Rum Zacapa (X.O)|41150`),
 ];
+
+const itemImages: Record<string, StaticImageData> = {
+  "entradas-8": gambas,
+  "peixes-2": lagostaGrelhada,
+  "carnes-0": bifeLombo,
+  "carnes-8": frangoGrelhado,
+  "sobremesas-1": sobremesaChocolate,
+  "espumantes-7": sangria,
+  "pequenos-almocos-12": hamburguer,
+};
+
+for (const category of categories) {
+  category.items = category.items.map((item) => {
+    const image = itemImages[item.id];
+    return image ? { ...item, image } : item;
+  });
+}
 
 export const formatKz = (n: number) =>
   String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " Kz";

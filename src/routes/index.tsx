@@ -122,7 +122,6 @@ export default function Index() {
         )}
         {filtered.map((c, idx) => {
           const showGroup = idx === 0 || filtered[idx - 1]?.group !== c.group;
-          const itemPhoto = c.image ?? (c.group === "Bebidas" ? bebidas : hero);
           return (
             <div key={c.id}>
               {showGroup && (
@@ -155,7 +154,7 @@ export default function Index() {
                     <li key={item.id} className="group flex h-full flex-col overflow-hidden rounded-xl border border-border/80 bg-card/70 transition duration-300 hover:-translate-y-0.5 hover:border-gold/40 hover:bg-card hover:shadow-[0_14px_36px_rgba(0,0,0,0.2)]">
                       <div className="relative h-40 w-full overflow-hidden sm:h-44">
                         <Image
-                          src={itemPhoto}
+                          src={item.image ?? c.image ?? (c.group === "Bebidas" ? bebidas : hero)}
                           alt={item.name}
                           fill
                           sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
