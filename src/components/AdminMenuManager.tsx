@@ -150,6 +150,12 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<"ALL" | "Comida" | "Bebidas">("ALL");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("ALL");
 
+  // Paginação
+  const ITEMS_PER_PAGE = 15;
+  const CATEGORIES_PER_PAGE = 20;
+  const [itemsPage, setItemsPage] = useState(1);
+  const [categoriesPage, setCategoriesPage] = useState(1);
+
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [message, setMessage] = useState<{ text: string; type: "info" | "error" | "success" } | null>(null);
   const [session, setSession] = useState(false);
@@ -552,6 +558,10 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
     return result;
   }, [menu, searchTerm, selectedGroupFilter, selectedCategoryFilter]);
 
+  // Reset página ao alterar filtros
+  useEffect(() => { setItemsPage(1); }, [searchTerm, selectedGroupFilter, selectedCategoryFilter, activeTab]);
+  useEffect(() => { setCategoriesPage(1); }, [activeTab]);
+
   // Contadores
   const totalItemsCount = useMemo(
     () => menu.reduce((acc, cat) => acc + cat.items.length, 0),
@@ -560,6 +570,20 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
   const activeItemsCount = useMemo(
     () => menu.reduce((acc, cat) => acc + cat.items.filter((i) => i.is_active).length, 0),
     [menu],
+  );
+
+  // Paginação de itens
+  const itemsTotalPages = Math.max(1, Math.ceil(allFilteredItems.length / ITEMS_PER_PAGE));
+  const paginatedItems = useMemo(
+    () => allFilteredItems.slice((itemsPage - 1) * ITEMS_PER_PAGE, itemsPage * ITEMS_PER_PAGE),
+    [allFilteredItems, itemsPage],
+  );
+
+  // Paginação de categorias
+  const categoriesTotalPages = Math.max(1, Math.ceil(menu.length / CATEGORIES_PER_PAGE));
+  const paginatedCategories = useMemo(
+    () => menu.slice((categoriesPage - 1) * CATEGORIES_PER_PAGE, categoriesPage * CATEGORIES_PER_PAGE),
+    [menu, categoriesPage],
   );
 
   // Estados de sessão
@@ -949,8 +973,8 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
 
       {/* ─── CONTEÚDO PRINCIPAL (COM AS TABELAS) ─── */}
       <main className="flex-1 overflow-x-hidden">
-        {/* Barra Superior / Header */}
-        <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-border bg-background/80 px-4 sm:px-8 backdrop-blur-xl">
+        {/* Barra Superior / Header fixo com sombra profunda */}
+        <header className="sticky top-0 z-40 flex h-20 items-center justify-between border-b border-border/80 bg-background/90 px-4 sm:px-8 backdrop-blur-2xl shadow-[0_4px_24px_rgba(0,0,0,0.35)] transition-shadow">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -1154,10 +1178,17 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      allFilteredItems.map(({ item, category, indexInCategory }) => {
+                      paginatedItems.map(({ item, category, indexInCategory }, rowIdx) => {
                         const imgSrc = imageSource(item.image);
                         return (
-                          <TableRow key={item.id} className="border-border hover:bg-muted/40 transition">
+                          <TableRow
+                            key={item.id}
+                            className="border-border hover:bg-muted/40 transition-colors"
+                            style={{
+                              animation: `fadeSlideIn 0.25s ease both`,
+                              animationDelay: `${rowIdx * 25}ms`,
+                            }}
+                          >
                             {/* Miniatura */}
                             <TableCell className="text-center py-2.5">
                               {imgSrc ? (
@@ -1300,12 +1331,81 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
                 </Table>
               </div>
 
-              {/* Rodapé da tabela */}
-              <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted-foreground">
-                <span>
-                  A mostrar <strong>{allFilteredItems.length}</strong> de {totalItemsCount} produtos
+              {/* Paginação de itens */}
+              <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-xs text-muted-foreground">
+                  A mostrar{" "}
+                  <strong className="text-foreground">
+                    {Math.min((itemsPage - 1) * ITEMS_PER_PAGE + 1, allFilteredItems.length)}–
+                    {Math.min(itemsPage * ITEMS_PER_PAGE, allFilteredItems.length)}
+                  </strong>{" "}
+                  de <strong className="text-foreground">{allFilteredItems.length}</strong> produtos
                 </span>
-                <span>Villa Sage &copy; {new Date().getFullYear()}</span>
+                {itemsTotalPages > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setItemsPage(1)}
+                      disabled={itemsPage === 1}
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-border text-xs text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-30"
+                      title="Primeira página"
+                    >
+                      «
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setItemsPage((p) => Math.max(1, p - 1))}
+                      disabled={itemsPage === 1}
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-border text-xs text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-30"
+                      title="Página anterior"
+                    >
+                      ‹
+                    </button>
+                    {Array.from({ length: itemsTotalPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === itemsTotalPages || Math.abs(p - itemsPage) <= 1)
+                      .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && (arr[idx - 1] as number) !== p - 1) acc.push("...");
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((p, i) =>
+                        p === "..." ? (
+                          <span key={`dots-${i}`} className="px-1 text-xs text-muted-foreground">…</span>
+                        ) : (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setItemsPage(p as number)}
+                            className={`grid h-7 min-w-[1.75rem] place-items-center rounded-lg border px-2 text-xs font-medium transition ${
+                              itemsPage === p
+                                ? "border-gold bg-gold text-black"
+                                : "border-border text-muted-foreground hover:border-gold hover:text-gold"
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        ),
+                      )}
+                    <button
+                      type="button"
+                      onClick={() => setItemsPage((p) => Math.min(itemsTotalPages, p + 1))}
+                      disabled={itemsPage === itemsTotalPages}
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-border text-xs text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-30"
+                      title="Próxima página"
+                    >
+                      ›
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setItemsPage(itemsTotalPages)}
+                      disabled={itemsPage === itemsTotalPages}
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-border text-xs text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-30"
+                      title="Última página"
+                    >
+                      »
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1353,10 +1453,17 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      menu.map((category, index) => (
-                        <TableRow key={category.id} className="border-border hover:bg-muted/40 transition">
+                      paginatedCategories.map((category, index) => (
+                        <TableRow
+                          key={category.id}
+                          className="border-border hover:bg-muted/40 transition-colors"
+                          style={{
+                            animation: `fadeSlideIn 0.25s ease both`,
+                            animationDelay: `${index * 30}ms`,
+                          }}
+                        >
                           <TableCell className="text-center font-mono text-xs text-muted-foreground">
-                            {index + 1}
+                            {(categoriesPage - 1) * CATEGORIES_PER_PAGE + index + 1}
                           </TableCell>
 
                           <TableCell className="font-medium text-cream text-sm">
@@ -1467,6 +1574,53 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
                   </TableBody>
                 </Table>
               </div>
+              {/* Paginação de categorias */}
+              {categoriesTotalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-border px-4 py-3">
+                  <span className="text-xs text-muted-foreground">
+                    Página <strong className="text-foreground">{categoriesPage}</strong> de{" "}
+                    <strong className="text-foreground">{categoriesTotalPages}</strong>
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesPage(1)}
+                      disabled={categoriesPage === 1}
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-border text-xs text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-30"
+                    >«</button>
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesPage((p) => Math.max(1, p - 1))}
+                      disabled={categoriesPage === 1}
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-border text-xs text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-30"
+                    >‹</button>
+                    {Array.from({ length: categoriesTotalPages }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setCategoriesPage(p)}
+                        className={`grid h-7 min-w-[1.75rem] place-items-center rounded-lg border px-2 text-xs font-medium transition ${
+                          categoriesPage === p
+                            ? "border-gold bg-gold text-black"
+                            : "border-border text-muted-foreground hover:border-gold hover:text-gold"
+                        }`}
+                      >{p}</button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesPage((p) => Math.min(categoriesTotalPages, p + 1))}
+                      disabled={categoriesPage === categoriesTotalPages}
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-border text-xs text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-30"
+                    >›</button>
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesPage(categoriesTotalPages)}
+                      disabled={categoriesPage === categoriesTotalPages}
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-border text-xs text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-30"
+                    >»</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
