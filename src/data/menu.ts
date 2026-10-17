@@ -68,12 +68,10 @@ import iceCream from "@/assets/menu-photos/dessert-icecream.jpg";
 import fruitDessert from "@/assets/menu-photos/dessert-fruit.jpg";
 import orangeJuice from "@/assets/menu-photos/juice-orange.jpg";
 import espresso from "@/assets/menu-photos/drink-coffee.jpg";
-import softDrinks from "@/assets/menu-photos/drink-soft.jpg";
 import beer from "@/assets/menu-photos/drink-beer.jpg";
 import wine from "@/assets/menu-photos/drink-wine.jpg";
 import champagne from "@/assets/menu-photos/drink-champagne.jpg";
 import ginTonic from "@/assets/menu-photos/drink-gin.jpg";
-import whisky from "@/assets/menu-photos/drink-whisky.jpg";
 import caldoVerde from "@/assets/menu-photos/soup-caldo-verde.jpg";
 import sopaDaPedra from "@/assets/menu-photos/soup-sopa-pedra.jpg";
 import fishHeadSoup from "@/assets/menu-photos/soup-fish-head.jpg";
@@ -453,16 +451,12 @@ const categoryImages: Record<string, StaticImageData> = {
   saladas: caesarSalad,
   sobremesas: cheesecake,
   "chas-cafes": espresso,
-  aguas: softDrinks,
   cervejas: beer,
   sumos: orangeJuice,
   cocktails: sangria,
   vinhos: wine,
   espumantes: champagne,
   gins: ginTonic,
-  whiskies: whisky,
-  licores: whisky,
-  aguardentes: whisky,
 };
 
 const commons = "https://commons.wikimedia.org/wiki/File:";
@@ -502,13 +496,6 @@ const categoryImageCredits: Record<string, ImageCredit> = {
     licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
     sourceUrl: "https://commons.wikimedia.org/w/index.php?curid=151468251",
   },
-  aguas: {
-    title: "Soft Drink in Canada",
-    creator: "Estabiano",
-    license: "CC0 1.0",
-    licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
-    sourceUrl: "https://commons.wikimedia.org/w/index.php?curid=145602006",
-  },
   cervejas: {
     title: "Mug of beer from above",
     creator: "Tomasz Sienicki",
@@ -543,27 +530,6 @@ const categoryImageCredits: Record<string, ImageCredit> = {
     license: "CC BY-SA 3.0",
     licenseUrl: "https://creativecommons.org/licenses/by-sa/3.0/",
     sourceUrl: "https://commons.wikimedia.org/w/index.php?curid=8529628",
-  },
-  whiskies: {
-    title: "A Glass of Whiskey on the Rocks",
-    creator: "Benjamin Thompson",
-    license: "CC BY 3.0",
-    licenseUrl: "https://creativecommons.org/licenses/by/3.0/",
-    sourceUrl: "https://commons.wikimedia.org/w/index.php?curid=23379451",
-  },
-  licores: {
-    title: "A Glass of Whiskey on the Rocks",
-    creator: "Benjamin Thompson",
-    license: "CC BY 3.0",
-    licenseUrl: "https://creativecommons.org/licenses/by/3.0/",
-    sourceUrl: "https://commons.wikimedia.org/w/index.php?curid=23379451",
-  },
-  aguardentes: {
-    title: "A Glass of Whiskey on the Rocks",
-    creator: "Benjamin Thompson",
-    license: "CC BY 3.0",
-    licenseUrl: "https://creativecommons.org/licenses/by/3.0/",
-    sourceUrl: "https://commons.wikimedia.org/w/index.php?curid=23379451",
   },
 };
 
