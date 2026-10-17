@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
-import QrPage from "@/routes/qr";
+import { redirect } from "next/navigation";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "QR Code do Menu — Villa Sage",
-  description: "Descarregue o QR Code do menu digital Villa Sage para mesas e cartazes.",
-  openGraph: {
-    title: "QR Code do Menu — Villa Sage",
-    description: "QR Code para abrir o menu digital do Villa Sage.",
-    type: "website",
-  },
-  twitter: { card: "summary" },
-  alternates: { canonical: "/qr" },
-  robots: { index: false, follow: true },
+  robots: { index: false, follow: false },
 };
 
-export default function Page() {
-  return <QrPage />;
+export default async function Page() {
+  const authenticated = await isAdminAuthenticated();
+  if (!authenticated) {
+    redirect("/login?from=/admin");
+  }
+
+  redirect("/admin?tab=qr");
 }

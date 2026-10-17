@@ -90,8 +90,15 @@ import breakfastChickenSandwich from "@/assets/menu-photos/breakfast-chicken-san
 import breakfastTunaSandwich from "@/assets/menu-photos/breakfast-tuna-sandwich.jpg";
 import type { StaticImageData } from "next/image";
 
-export const WHATSAPP_NUMBER = "244931544912";
-export const WHATSAPP_DISPLAY = "+244 931 544 912";
+export const WHATSAPP_PRIMARY_NUMBER = "244974573814";
+export const WHATSAPP_PRIMARY_DISPLAY = "+244 974 573 814";
+
+export const WHATSAPP_SECONDARY_NUMBER = "244923295323";
+export const WHATSAPP_SECONDARY_DISPLAY = "+244 923 295 323";
+
+// Compatibilidade
+export const WHATSAPP_NUMBER = WHATSAPP_PRIMARY_NUMBER;
+export const WHATSAPP_DISPLAY = WHATSAPP_PRIMARY_DISPLAY;
 export const ADDRESS = "Morro dos Veados, entrada do Matadouro, Benfica, Angola";
 
 export type Variant = { label: string; price: number };
@@ -1024,7 +1031,10 @@ for (const category of categories) {
 export const formatKz = (n: number) =>
   String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " Kz";
 
-export function buildWhatsAppUrl(o: { name: string; qty: number; variant?: string | undefined; unit: number }) {
+export function buildWhatsAppUrl(
+  o: { name: string; qty: number; variant?: string | undefined; unit: number },
+  number: string = WHATSAPP_PRIMARY_NUMBER,
+) {
   const lines = [
     "Olá, Villa Sage! Gostaria de encomendar:",
     "",
@@ -1036,5 +1046,5 @@ export function buildWhatsAppUrl(o: { name: string; qty: number; variant?: strin
     "",
     "Aguardo a confirmação. Obrigado!",
   ];
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(lines.join("\n"))}`;
+  return `https://wa.me/${number}?text=${encodeURIComponent(lines.join("\n"))}`;
 }

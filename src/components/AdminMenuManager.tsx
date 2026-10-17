@@ -10,6 +10,8 @@ import {
   Check,
   ChevronDown,
   Coffee,
+  Copy,
+  Download,
   ExternalLink,
   Filter,
   FolderTree,
@@ -20,6 +22,8 @@ import {
   Menu,
   Pencil,
   Plus,
+  Printer,
+  QrCode,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -27,6 +31,7 @@ import {
   UtensilsCrossed,
   X,
 } from "lucide-react";
+import QRCode from "qrcode";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -145,10 +150,15 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
     })),
   );
 
-  const [activeTab, setActiveTab] = useState<"items" | "categories">("items");
+  const [activeTab, setActiveTab] = useState<"items" | "categories" | "qr">("items");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<"ALL" | "Comida" | "Bebidas">("ALL");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("ALL");
+
+  // QR Code State
+  const [qrCustomUrl, setQrCustomUrl] = useState<string>("");
+  const [qrPreview, setQrPreview] = useState<string>("");
+  const [copiedQrUrl, setCopiedQrUrl] = useState(false);
 
   // Paginação
   const ITEMS_PER_PAGE = 15;
@@ -230,6 +240,32 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
       active = false;
     };
   }, []);
+
+  // Detetar aba da URL e inicializar URL do QR Code
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam === "qr" || tabParam === "categories" || tabParam === "items") {
+        setActiveTab(tabParam);
+      }
+      setQrCustomUrl(window.location.origin + "/");
+    }
+  }, []);
+
+  const effectiveQrUrl = qrCustomUrl || (typeof window !== "undefined" ? window.location.origin + "/" : "");
+
+  useEffect(() => {
+    if (!effectiveQrUrl) return;
+    QRCode.toDataURL(effectiveQrUrl, {
+      width: 2048,
+      margin: 2,
+      errorCorrectionLevel: "H",
+      color: { dark: "#0f2a20", light: "#ffffff" },
+    })
+      .then(setQrPreview)
+      .catch(() => setQrPreview(""));
+  }, [effectiveQrUrl]);
 
   async function saveChange(method: "POST" | "PATCH" | "DELETE", payload: unknown, success: string) {
     setIsLoading(true);
@@ -752,6 +788,28 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
                   {menu.length}
                 </span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("qr")}
+                className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
+                  activeTab === "qr"
+                    ? "bg-gold text-black shadow-md shadow-gold/20"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <QrCode className="h-4 w-4" />
+                  QR Code do Menu
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    activeTab === "qr" ? "bg-black/20 text-black" : "bg-gold/20 text-gold"
+                  }`}
+                >
+                  Mesas
+                </span>
+              </button>
             </nav>
           </div>
 
@@ -925,6 +983,17 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
               >
                 <FolderTree className="h-4 w-4" />
                 Categorias ({menu.length})
+              </Button>
+              <Button
+                variant={activeTab === "qr" ? "default" : "outline"}
+                onClick={() => {
+                  setActiveTab("qr");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full justify-start gap-3 ${activeTab === "qr" ? "bg-gold text-black" : ""}`}
+              >
+                <QrCode className="h-4 w-4" />
+                QR Code do Menu
               </Button>
               <div className="pt-4 border-t border-border space-y-2">
                 <Button
@@ -1621,6 +1690,154 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════════ */}
+          {/* ABA 3: GESTÃO E DOWNLOAD DO QR CODE DO MENU DIGITAL             */}
+          {/* ═════════════════════════════════════════════════════════════════ */}
+          {activeTab === "qr" && (
+            <div className="space-y-6">
+              <div className="rounded-2xl border border-border bg-card/80 p-6 shadow-md backdrop-blur-xl sm:p-8">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-6">
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
+                      <QrCode className="h-3.5 w-3.5" /> Acesso Digital
+                    </span>
+                    <h2 className="mt-2 font-display text-2xl font-bold text-cream sm:text-3xl">
+                      QR Code do Menu Digital
+                    </h2>
+                    <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+                      Gere e transfira o QR Code oficial em alta definição (2048 × 2048 px) para impressão nas mesas, balcão e expositores.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-start">
+                  {/* Coluna da Esquerda: Configurações & Instruções */}
+                  <div className="space-y-6 lg:col-span-7">
+                    <div className="space-y-2">
+                      <Label htmlFor="qr-url-input" className="text-xs font-medium text-foreground">
+                        Endereço URL de Destino do Menu
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="qr-url-input"
+                          value={effectiveQrUrl}
+                          onChange={(e) => setQrCustomUrl(e.target.value)}
+                          placeholder="https://exemplo.com/"
+                          className="font-mono text-xs bg-background/50 border-border focus:border-gold"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            if (effectiveQrUrl && typeof navigator !== "undefined") {
+                              void navigator.clipboard.writeText(effectiveQrUrl);
+                              setCopiedQrUrl(true);
+                              setTimeout(() => setCopiedQrUrl(false), 2500);
+                            }
+                          }}
+                          className="shrink-0 gap-1.5 border-border hover:border-gold hover:text-gold"
+                          title="Copiar URL"
+                        >
+                          {copiedQrUrl ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                          <span className="hidden sm:inline">{copiedQrUrl ? "Copiado" : "Copiar"}</span>
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Por defeito utiliza o domínio atual. Pode inserir qualquer URL se pretender apontar para um domínio personalizado.
+                      </p>
+                    </div>
+
+                    {/* Aviso caso esteja em domínio de preview/local */}
+                    {effectiveQrUrl && /localhost|127\.0\.0\.1|lovableproject\.com|id-preview--/.test(effectiveQrUrl) && (
+                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
+                        <p className="font-semibold text-amber-400">⚠️ Endereço de Teste / Temporário Detectado</p>
+                        <p className="mt-1 opacity-90">
+                          Este QR Code está a apontar para um endereço temporário ou local. Antes de imprimir para as mesas físicas, assegure-se de que o URL corresponde ao domínio publicado definitivo (ex: Vercel ou domínio próprio do restaurante).
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Dicas de Impressão e Boas Práticas */}
+                    <div className="rounded-xl border border-border/80 bg-background/40 p-5 space-y-3">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-gold">
+                        Guia de Utilização no Restaurante
+                      </h4>
+                      <ul className="space-y-2 text-xs text-muted-foreground">
+                        <li className="flex items-start gap-2">
+                          <span className="mt-0.5 text-gold">•</span>
+                          <span><strong>Nas Mesas:</strong> Recomendado suportes acrílicos verticais (T-stand) de 10×15 cm ou adesivos laminados de 8×8 cm.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="mt-0.5 text-gold">•</span>
+                          <span><strong>Ao Balcão / Entrada:</strong> Expositor visível perto da recepção para clientes que queiram ver o menu em takeaway.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="mt-0.5 text-gold">•</span>
+                          <span><strong>Resolução:</strong> O ficheiro PNG descarregado tem 2048 × 2048 px em alta definição com correção de erros avançada (Nível H).</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Coluna da Direita: Cartão do QR Code e Ações */}
+                  <div className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-background/60 p-6 lg:col-span-5 text-center">
+                    <div className="w-full max-w-xs rounded-2xl border border-gold/30 bg-cream p-6 shadow-2xl text-center">
+                      <p className="font-display text-xl font-bold tracking-wide text-[#0f2a20]">
+                        Villa Sage
+                      </p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0f2a20]/70 mb-3">
+                        Menu Digital
+                      </p>
+                      {qrPreview ? (
+                        <div className="relative mx-auto aspect-square w-full max-w-[240px] overflow-hidden rounded-xl bg-white p-2 shadow-inner">
+                          <Image
+                            src={qrPreview}
+                            alt="QR Code do Menu Villa Sage"
+                            width={2048}
+                            height={2048}
+                            unoptimized
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="grid aspect-square w-full place-items-center rounded-xl bg-white text-xs text-muted-foreground">
+                          A gerar QR Code...
+                        </div>
+                      )}
+                      <p className="mt-4 text-[11px] font-medium text-[#0f2a20]/80">
+                        Aponte a câmara do telemóvel para abrir o menu
+                      </p>
+                    </div>
+
+                    <div className="mt-6 flex w-full max-w-xs flex-col gap-2.5">
+                      <a
+                        href={qrPreview || undefined}
+                        download="villa-sage-menu-qr.png"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-black shadow-md shadow-gold/20 transition hover:brightness-110"
+                      >
+                        <Download className="h-4 w-4" />
+                        Descarregar PNG (2048×2048)
+                      </a>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          if (typeof window !== "undefined") {
+                            window.print();
+                          }
+                        }}
+                        className="w-full gap-2 border-border hover:border-gold hover:text-gold"
+                      >
+                        <Printer className="h-4 w-4" />
+                        Imprimir Cartão
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

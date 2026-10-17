@@ -2,13 +2,23 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowDown, ChevronDown, House, MapPin, QrCode, Search, Utensils, X } from "lucide-react";
+import { ArrowDown, ChevronDown, House, LogIn, MapPin, Search, Utensils, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import hero from "@/assets/hero.jpg";
 import bebidas from "@/assets/bebidas.jpg";
 import { OrderDialog } from "@/components/OrderDialog";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
-import { ADDRESS, categories, formatKz, WHATSAPP_DISPLAY, WHATSAPP_NUMBER, type Category, type MenuItem } from "@/data/menu";
+import {
+  ADDRESS,
+  categories,
+  formatKz,
+  WHATSAPP_PRIMARY_DISPLAY,
+  WHATSAPP_PRIMARY_NUMBER,
+  WHATSAPP_SECONDARY_DISPLAY,
+  WHATSAPP_SECONDARY_NUMBER,
+  type Category,
+  type MenuItem,
+} from "@/data/menu";
 
 const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -75,20 +85,22 @@ export default function Index({ initialCategories = categories }: { initialCateg
             <a href="#inicio" className="transition hover:text-gold">Início</a>
             <a href="#menu" className="text-gold">Menu</a>
             <a href="#contactos" className="transition hover:text-gold">Contactos</a>
-            <Link href="/admin" className="transition hover:text-gold">Admin</Link>
+            <Link href="/login" className="transition hover:text-gold">Entrar</Link>
           </nav>
           <div className="flex items-center gap-2">
-            <Link href="/admin" aria-label="Página administrativa" className="grid h-10 w-10 place-items-center rounded-xl border border-border text-muted-foreground transition hover:border-gold hover:text-gold">
-              <Utensils className="h-4 w-4" />
-            </Link>
-            <Link href="/qr" aria-label="QR Code do menu" className="grid h-10 w-10 place-items-center rounded-xl border border-border text-muted-foreground transition hover:border-gold hover:text-gold">
-              <QrCode className="h-4 w-4" />
+            <Link
+              href="/login"
+              aria-label="Iniciar Sessão"
+              title="Iniciar Sessão"
+              className="grid h-10 w-10 place-items-center rounded-xl border border-border text-muted-foreground transition hover:border-gold hover:text-gold"
+            >
+              <LogIn className="h-4 w-4" />
             </Link>
             <a
-              href={`https://wa.me/${WHATSAPP_NUMBER}`}
+              href={`https://wa.me/${WHATSAPP_PRIMARY_NUMBER}`}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`WhatsApp ${WHATSAPP_DISPLAY}`}
+              aria-label={`WhatsApp ${WHATSAPP_PRIMARY_DISPLAY}`}
               className="grid h-10 w-10 place-items-center rounded-xl bg-whatsapp text-whatsapp-foreground transition hover:brightness-110 sm:flex sm:w-auto sm:gap-2 sm:px-4"
             >
               <WhatsAppIcon className="h-4 w-4" />
@@ -118,12 +130,12 @@ export default function Index({ initialCategories = categories }: { initialCateg
                 Explorar menu <ArrowDown className="h-4 w-4" />
               </a>
               <a
-                href={`https://wa.me/${WHATSAPP_NUMBER}`}
+                href={`https://wa.me/${WHATSAPP_PRIMARY_NUMBER}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg border border-cream/25 bg-background/35 px-5 py-3 text-sm text-cream backdrop-blur transition hover:border-gold hover:text-gold"
               >
-                <WhatsAppIcon className="h-4 w-4" /> {WHATSAPP_DISPLAY}
+                <WhatsAppIcon className="h-4 w-4 text-whatsapp" /> {WHATSAPP_PRIMARY_DISPLAY}
               </a>
             </div>
           </div>
@@ -346,13 +358,26 @@ export default function Index({ initialCategories = categories }: { initialCateg
       <footer id="contactos" className="border-t border-border bg-card/30 px-5 py-8 text-center sm:py-10">
         <p className="font-display text-2xl text-cream">Villa Sage</p>
         <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">{ADDRESS}</p>
-        <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm text-gold transition hover:text-cream">
-          <WhatsAppIcon className="h-4 w-4" /> {WHATSAPP_DISPLAY}
-        </a>
-        <div>
-          <Link href="/qr" className="mt-4 inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-xs text-muted-foreground transition hover:border-gold hover:text-gold">
-            <QrCode className="h-4 w-4" /> QR Code do menu
-          </Link>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          <a
+            href={`https://wa.me/${WHATSAPP_PRIMARY_NUMBER}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl border border-whatsapp/40 bg-whatsapp/10 px-4 py-2 text-xs font-medium text-cream transition hover:border-whatsapp hover:bg-whatsapp hover:text-whatsapp-foreground"
+          >
+            <WhatsAppIcon className="h-4 w-4" />
+            <span>Principal: <strong className="font-semibold">{WHATSAPP_PRIMARY_DISPLAY}</strong></span>
+          </a>
+
+          <a
+            href={`https://wa.me/${WHATSAPP_SECONDARY_NUMBER}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-background/50 px-4 py-2 text-xs font-medium text-muted-foreground transition hover:border-gold hover:text-gold"
+          >
+            <WhatsAppIcon className="h-4 w-4 text-gold" />
+            <span>Alternativo: <strong className="font-semibold">{WHATSAPP_SECONDARY_DISPLAY}</strong></span>
+          </a>
         </div>
       </footer>
 

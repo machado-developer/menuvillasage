@@ -1,21 +1,31 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { Minus, Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { buildWhatsAppUrl, formatKz, type MenuItem } from "@/data/menu";
+import {
+  buildWhatsAppUrl,
+  formatKz,
+  WHATSAPP_PRIMARY_DISPLAY,
+  WHATSAPP_PRIMARY_NUMBER,
+  WHATSAPP_SECONDARY_DISPLAY,
+  WHATSAPP_SECONDARY_NUMBER,
+  type MenuItem,
+} from "@/data/menu";
 import { WhatsAppIcon } from "./WhatsAppIcon";
 
 export function OrderDialog({ item, onClose }: { item: MenuItem | null; onClose: () => void }) {
   const [qty, setQty] = useState(1);
   const [variantIdx, setVariantIdx] = useState(0);
+  const [phone, setPhone] = useState(WHATSAPP_PRIMARY_NUMBER);
 
   useEffect(() => {
     setQty(1);
     setVariantIdx(0);
+    setPhone(WHATSAPP_PRIMARY_NUMBER);
   }, [item]);
 
   const variant = item?.variants?.[variantIdx];
   const unit = variant ? variant.price : item?.price ?? 0;
-  const url = item ? buildWhatsAppUrl({ name: item.name, qty, variant: variant?.label, unit }) : "#";
+  const url = item ? buildWhatsAppUrl({ name: item.name, qty, variant: variant?.label, unit }, phone) : "#";
 
   return (
     <Dialog.Root open={!!item} onOpenChange={(o) => !o && onClose()}>
@@ -83,6 +93,38 @@ export function OrderDialog({ item, onClose }: { item: MenuItem | null; onClose:
                 <span className="font-display text-3xl text-gold">{formatKz(unit * qty)}</span>
               </div>
 
+              {/* Escolha do número WhatsApp */}
+              <div className="mt-5">
+                <p className="mb-2 text-xs text-muted-foreground font-medium">Enviar pedido para:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPhone(WHATSAPP_PRIMARY_NUMBER)}
+                    className={`rounded-lg border p-2 text-left text-xs transition ${
+                      phone === WHATSAPP_PRIMARY_NUMBER
+                        ? "border-whatsapp bg-whatsapp/15 text-cream"
+                        : "border-border text-muted-foreground hover:border-whatsapp/40"
+                    }`}
+                  >
+                    <span className="block font-semibold text-whatsapp">Principal</span>
+                    <span className="block text-[11px] opacity-80">{WHATSAPP_PRIMARY_DISPLAY}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPhone(WHATSAPP_SECONDARY_NUMBER)}
+                    className={`rounded-lg border p-2 text-left text-xs transition ${
+                      phone === WHATSAPP_SECONDARY_NUMBER
+                        ? "border-whatsapp bg-whatsapp/15 text-cream"
+                        : "border-border text-muted-foreground hover:border-whatsapp/40"
+                    }`}
+                  >
+                    <span className="block font-semibold text-gold">Alternativo</span>
+                    <span className="block text-[11px] opacity-80">{WHATSAPP_SECONDARY_DISPLAY}</span>
+                  </button>
+                </div>
+              </div>
+
               <a
                 href={url}
                 target="_blank"
@@ -93,7 +135,7 @@ export function OrderDialog({ item, onClose }: { item: MenuItem | null; onClose:
                 Encomendar pelo WhatsApp
               </a>
               <p className="mt-3 text-center text-xs text-muted-foreground">
-                Abrirá o WhatsApp com a mensagem pronta. Confirme o envio e aguarde a resposta do restaurante.
+                Abrirá o WhatsApp ({phone === WHATSAPP_PRIMARY_NUMBER ? "Principal" : "Alternativo"}) com a mensagem pronta.
               </p>
             </>
           )}
