@@ -1,38 +1,86 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import type { StaticImageData } from "next/image";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  Coffee,
+  ExternalLink,
+  Filter,
+  FolderTree,
+  ImageIcon,
+  Layers,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  UtensilsCrossed,
+  X,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import type { Category, MenuItem } from "@/data/menu";
 
-type AdminItem = Omit<MenuItem, "image"> & { image?: string | StaticImageData; is_active: boolean; sort_order: number };
-type AdminCategory = Omit<Category, "items"> & { is_active: boolean; sort_order: number; items: AdminItem[] };
+type AdminItem = Omit<MenuItem, "image"> & {
+  image?: string | StaticImageData;
+  is_active: boolean;
+  sort_order: number;
+};
+
+type AdminCategory = Omit<Category, "items"> & {
+  is_active: boolean;
+  sort_order: number;
+  items: AdminItem[];
+};
+
 type AdminMenuRow = Omit<AdminCategory, "items"> & {
   items: (Omit<AdminItem, "image"> & { image: string | null })[];
 };
+
 type ItemForm = {
   categoryId: string;
   name: string;
   description: string;
   price: string;
-  /** URL persistente (Blob ou relativo) ou "" */
   imageUrl: string;
-  /** Ficheiro local seleccionado ainda não carregado */
   pendingFile: File | null;
-  /** URL de pré-visualização gerado por createObjectURL */
   previewUrl: string;
   editingId: string | null;
 };
+
 type UploadState = "idle" | "uploading" | "success" | "error";
 
-/** Tamanho máximo para validação no cliente (10 MB — igual ao servidor) */
 const MAX_CLIENT_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
-
-// ─── helpers ────────────────────────────────────────────────────────────────
 
 async function adminRequest<T>(
   method: "GET" | "POST" | "PATCH" | "DELETE",
@@ -83,8 +131,6 @@ const emptyItemForm = (categoryId: string): ItemForm => ({
   editingId: null,
 });
 
-// ─── componente principal ────────────────────────────────────────────────────
-
 export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
   const [menu, setMenu] = useState<AdminCategory[]>(
     initialMenu.map((category) => ({
@@ -98,31 +144,47 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
       })),
     })),
   );
+
+  const [activeTab, setActiveTab] = useState<"items" | "categories">("items");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState<"ALL" | "Comida" | "Bebidas">("ALL");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("ALL");
+
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [message, setMessage] = useState<{ text: string; type: "info" | "error" | "success" } | null>(null);
   const [session, setSession] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Modais
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Formulários
   const [categoryForm, setCategoryForm] = useState<{ name: string; group: Category["group"] }>({
     name: "",
     group: "Comida",
   });
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+
   const [itemForm, setItemForm] = useState<ItemForm>(emptyItemForm(initialMenu[0]?.id ?? ""));
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Revogar object URLs para evitar memory leaks
+  const fileInputId = useId();
+
   useEffect(() => {
     return () => {
       if (itemForm.previewUrl) URL.revokeObjectURL(itemForm.previewUrl);
     };
   }, [itemForm.previewUrl]);
 
-  // ─── helpers internos ─────────────────────────────────────────────────────
-
   function showMessage(text: string, type: "info" | "error" | "success" = "info") {
     setMessage({ text, type });
+    if (type === "success") {
+      setTimeout(() => setMessage(null), 4000);
+    }
   }
 
   async function refreshMenu() {
@@ -137,35 +199,30 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
     }));
   }
 
-  // ─── sessão ───────────────────────────────────────────────────────────────
-
+  // Verificação inicial de sessão (silenciosa para nunca gerar erro na Vercel)
   useEffect(() => {
     let active = true;
-    adminRequest<{ authenticated: boolean; configured: boolean }>("GET", "/api/admin/session")
+    adminRequest<{ authenticated: boolean }>("GET", "/api/admin/session")
       .then((status) => {
         if (!active) return;
         setSession(status.authenticated);
-        if (!status.configured) {
-          showMessage(
-            "Configure DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD e ADMIN_SESSION_SECRET no .env.local.",
-            "error",
-          );
-        }
         if (status.authenticated) {
           void refreshMenu().catch((error: unknown) => {
-            if (active)
+            if (active) {
               showMessage(error instanceof Error ? error.message : "Não foi possível carregar o menu.", "error");
+            }
           });
         }
       })
-      .catch((error: unknown) => {
-        if (active)
-          showMessage(error instanceof Error ? error.message : "Não foi possível verificar a sessão.", "error");
+      .catch(() => {
+        // Silencioso na inicialização
       })
       .finally(() => {
         if (active) setIsCheckingSession(false);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function saveChange(method: "POST" | "PATCH" | "DELETE", payload: unknown, success: string) {
@@ -184,8 +241,6 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
     }
   }
 
-  // ─── login / logout ───────────────────────────────────────────────────────
-
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
@@ -196,7 +251,7 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
       await refreshMenu();
       showMessage("Login efetuado com sucesso.", "success");
     } catch (error) {
-      showMessage(error instanceof Error ? error.message : "Não foi possível iniciar sessão.", "error");
+      showMessage(error instanceof Error ? error.message : "Credenciais inválidas.", "error");
     } finally {
       setIsLoading(false);
     }
@@ -212,12 +267,49 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
     }
   }
 
-  // ─── categorias ───────────────────────────────────────────────────────────
+  // Abertura de modais
+  function openNewItemModal() {
+    clearImage();
+    setItemForm(emptyItemForm(menu[0]?.id ?? ""));
+    setIsItemModalOpen(true);
+  }
 
+  function openEditItemModal(category: AdminCategory, item: MenuItem) {
+    const existingUrl = imageSource(item.image);
+    setItemForm({
+      categoryId: category.id,
+      name: item.name,
+      description: item.description ?? "",
+      price: String(item.price ?? 0),
+      imageUrl: existingUrl,
+      pendingFile: null,
+      previewUrl: existingUrl,
+      editingId: item.id,
+    });
+    setUploadState("idle");
+    setIsItemModalOpen(true);
+  }
+
+  function openNewCategoryModal() {
+    setCategoryForm({ name: "", group: "Comida" });
+    setEditingCategoryId(null);
+    setIsCategoryModalOpen(true);
+  }
+
+  function openEditCategoryModal(category: AdminCategory) {
+    setCategoryForm({ name: category.name, group: category.group });
+    setEditingCategoryId(category.id);
+    setIsCategoryModalOpen(true);
+  }
+
+  // Categorias
   async function handleSaveCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = categoryForm.name.trim();
-    if (!name) { showMessage("Informe o nome da categoria.", "error"); return; }
+    if (!name) {
+      showMessage("Informe o nome da categoria.", "error");
+      return;
+    }
 
     const editingId = editingCategoryId;
     const saved = await saveChange(
@@ -225,20 +317,21 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
       editingId
         ? { type: "category", id: editingId, name, group: categoryForm.group }
         : { type: "category", name, group: categoryForm.group },
-      editingId ? "Categoria actualizada." : "Categoria adicionada com sucesso.",
+      editingId ? "Categoria actualizada com sucesso." : "Categoria adicionada com sucesso.",
     );
-    if (!saved) return;
-    setCategoryForm({ name: "", group: "Comida" });
-    setEditingCategoryId(null);
+
+    if (saved) {
+      setIsCategoryModalOpen(false);
+      setCategoryForm({ name: "", group: "Comida" });
+      setEditingCategoryId(null);
+    }
   }
 
-  // ─── upload de imagem ─────────────────────────────────────────────────────
-
+  // Upload
   function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validações no cliente (pré-filtragem)
     if (!ACCEPTED_TYPES.includes(file.type)) {
       showMessage("Escolha uma imagem JPEG, PNG, WebP, GIF ou AVIF.", "error");
       event.target.value = "";
@@ -250,7 +343,6 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
       return;
     }
 
-    // Revogar pré-visualização anterior
     if (itemForm.previewUrl) URL.revokeObjectURL(itemForm.previewUrl);
 
     const previewUrl = URL.createObjectURL(file);
@@ -259,15 +351,10 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
     setMessage(null);
   }
 
-  /**
-   * Faz upload do pendingFile para /api/upload e actualiza itemForm.imageUrl.
-   * Requer que o item já exista na BD (editingId preenchido).
-   */
   async function uploadPendingFile(itemId: string): Promise<string | null> {
     if (!itemForm.pendingFile) return itemForm.imageUrl || null;
 
     setUploadState("uploading");
-
     const fd = new FormData();
     fd.append("file", itemForm.pendingFile);
     fd.append("itemId", itemId);
@@ -283,7 +370,7 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
       return url;
     } catch (error) {
       setUploadState("error");
-      showMessage(error instanceof Error ? error.message : "Não foi possível carregar a imagem.", "error");
+      showMessage(error instanceof Error ? error.message : "Falha no envio da fotografia.", "error");
       return null;
     }
   }
@@ -314,15 +401,23 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
     }
   }
 
-  // ─── itens ────────────────────────────────────────────────────────────────
-
+  // Salvar Item
   async function handleSaveItem(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = itemForm.name.trim();
     const price = Number(itemForm.price);
-    if (!itemForm.categoryId) { showMessage("Selecione uma categoria.", "error"); return; }
-    if (!name) { showMessage("Informe o nome do item.", "error"); return; }
-    if (!Number.isFinite(price) || price < 0) { showMessage("Informe um preço válido.", "error"); return; }
+    if (!itemForm.categoryId) {
+      showMessage("Selecione uma categoria.", "error");
+      return;
+    }
+    if (!name) {
+      showMessage("Informe o nome do item.", "error");
+      return;
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      showMessage("Informe um preço válido.", "error");
+      return;
+    }
 
     setIsLoading(true);
     setMessage(null);
@@ -331,13 +426,11 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
       const editingId = itemForm.editingId;
 
       if (editingId) {
-        // Caso edição: item já existe — podemos fazer upload directo
         let finalImageUrl = itemForm.imageUrl || null;
 
         if (itemForm.pendingFile) {
           const uploaded = await uploadPendingFile(editingId);
           if (uploaded === null && itemForm.pendingFile) {
-            // Upload falhou — já foi mostrada mensagem
             setIsLoading(false);
             return;
           }
@@ -353,11 +446,12 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
           price,
           imageUrl: finalImageUrl,
         });
+
         await refreshMenu();
-        showMessage("Item actualizado.", "success");
+        showMessage("Item actualizado com sucesso.", "success");
+        setIsItemModalOpen(false);
         setItemForm(emptyItemForm(itemForm.categoryId));
       } else {
-        // Caso criação: criar primeiro sem imagem, depois fazer upload
         const created = await adminRequest<{ id: string }>("POST", "/api/admin/menu", {
           type: "item",
           categoryId: itemForm.categoryId,
@@ -369,22 +463,18 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
 
         let finalImageUrl: string | null = null;
         if (itemForm.pendingFile) {
-          // Temporariamente actualizar o form com o novo ID para o upload funcionar
           setItemForm((prev) => ({ ...prev, editingId: created.id }));
-          const uploaded = await uploadPendingFile(created.id);
-          finalImageUrl = uploaded;
-          // Se o upload falhar, o item já foi criado (sem imagem) — não bloquear
+          finalImageUrl = await uploadPendingFile(created.id);
         }
 
-        if (finalImageUrl) {
-          // A rota /api/upload já guardou o URL — apenas actualizamos o estado local
-          await refreshMenu();
-          showMessage("Item adicionado ao menu com fotografia.", "success");
-        } else {
-          await refreshMenu();
-          showMessage("Item adicionado ao menu.", "success");
-        }
-
+        await refreshMenu();
+        showMessage(
+          finalImageUrl
+            ? "Item adicionado com fotografia ao menu."
+            : "Item adicionado ao menu.",
+          "success",
+        );
+        setIsItemModalOpen(false);
         setItemForm(emptyItemForm(itemForm.categoryId));
       }
     } catch (error) {
@@ -394,23 +484,7 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
     }
   }
 
-  function beginEditingItem(category: AdminCategory, item: MenuItem) {
-    const existingUrl = imageSource(item.image);
-    setItemForm({
-      categoryId: category.id,
-      name: item.name,
-      description: item.description ?? "",
-      price: String(item.price ?? 0),
-      imageUrl: existingUrl,
-      pendingFile: null,
-      previewUrl: existingUrl,
-      editingId: item.id,
-    });
-    setUploadState("idle");
-  }
-
-  // ─── reordenação ─────────────────────────────────────────────────────────
-
+  // Reordenação
   async function moveCategory(index: number, direction: "up" | "down") {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= menu.length) return;
@@ -424,9 +498,9 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
       await adminRequest("PATCH", "/api/admin/menu", { type: "category", id: currentCategory.id, sortOrder: targetIndex });
       await adminRequest("PATCH", "/api/admin/menu", { type: "category", id: targetCategory.id, sortOrder: index });
       await refreshMenu();
-      showMessage(`Ordem da categoria "${currentCategory.name}" actualizada.`, "success");
+      showMessage(`Ordem de "${currentCategory.name}" actualizada.`, "success");
     } catch (error) {
-      showMessage(error instanceof Error ? error.message : "Não foi possível reordenar categorias.", "error");
+      showMessage(error instanceof Error ? error.message : "Erro ao reordenar.", "error");
     } finally {
       setIsLoading(false);
     }
@@ -445,280 +519,1174 @@ export function AdminMenuManager({ initialMenu }: { initialMenu: Category[] }) {
       await adminRequest("PATCH", "/api/admin/menu", { type: "item", id: currentItem.id, sortOrder: targetIndex });
       await adminRequest("PATCH", "/api/admin/menu", { type: "item", id: targetItem.id, sortOrder: itemIndex });
       await refreshMenu();
-      showMessage(`Ordem do item "${currentItem.name}" actualizada.`, "success");
+      showMessage(`Ordem de "${currentItem.name}" actualizada.`, "success");
     } catch (error) {
-      showMessage(error instanceof Error ? error.message : "Não foi possível reordenar itens.", "error");
+      showMessage(error instanceof Error ? error.message : "Erro ao reordenar.", "error");
     } finally {
       setIsLoading(false);
     }
   }
 
-  // ─── estados de carregamento / sessão ─────────────────────────────────────
+  // Lista plana de itens filtrada para a tabela de produtos
+  const allFilteredItems = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const result: { item: AdminItem; category: AdminCategory; indexInCategory: number }[] = [];
 
+    menu.forEach((category) => {
+      if (selectedGroupFilter !== "ALL" && category.group !== selectedGroupFilter) return;
+      if (selectedCategoryFilter !== "ALL" && category.id !== selectedCategoryFilter) return;
+
+      category.items.forEach((item, indexInCategory) => {
+        if (
+          term &&
+          !item.name.toLowerCase().includes(term) &&
+          !(item.description && item.description.toLowerCase().includes(term))
+        ) {
+          return;
+        }
+
+        result.push({ item, category, indexInCategory });
+      });
+    });
+
+    return result;
+  }, [menu, searchTerm, selectedGroupFilter, selectedCategoryFilter]);
+
+  // Contadores
+  const totalItemsCount = useMemo(
+    () => menu.reduce((acc, cat) => acc + cat.items.length, 0),
+    [menu],
+  );
+  const activeItemsCount = useMemo(
+    () => menu.reduce((acc, cat) => acc + cat.items.filter((i) => i.is_active).length, 0),
+    [menu],
+  );
+
+  // Estados de sessão
   if (isCheckingSession) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-10">
-        <p className="text-sm text-muted-foreground">A verificar sessão…</p>
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" />
+          <p className="text-sm font-medium text-muted-foreground">A carregar o painel administrativo…</p>
+        </div>
       </div>
     );
   }
 
   if (!session) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-10">
-        <div className="w-full rounded-2xl border border-border bg-card p-6 shadow-[0_18px_60px_rgba(0,0,0,0.25)]">
-          <p className="text-xs uppercase tracking-[0.22em] text-gold">Administração</p>
-          <h1 className="mt-3 font-display text-4xl text-cream">Login</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Entre com as credenciais do painel para gerir o menu.</p>
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+        <div className="w-full max-w-md rounded-3xl border border-border/80 bg-card/90 p-8 shadow-2xl backdrop-blur-xl sm:p-10">
+          <div className="text-center">
+            <Link href="/" className="inline-block transition hover:opacity-90">
+              <Image
+                src="/logo.png"
+                alt="Villa Sage"
+                width={80}
+                height={56}
+                priority
+                className="mx-auto h-14 w-20 rounded-md bg-white object-contain p-1 shadow-md sm:h-16 sm:w-24"
+              />
+            </Link>
+            <div className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-gold">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Painel Administrativo
+            </div>
+            <h1 className="mt-3 font-display text-3xl font-semibold text-cream">Login</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Aceda com as credenciais do restaurante para gerir o cardápio.
+            </p>
+          </div>
+
           <form onSubmit={handleLogin} className="mt-6 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={loginData.email} onChange={(e) => setLoginData((p) => ({ ...p, email: e.target.value }))} autoComplete="username" required />
+              <Label htmlFor="admin-email">Email</Label>
+              <Input
+                id="admin-email"
+                type="email"
+                value={loginData.email}
+                onChange={(e) => setLoginData((p) => ({ ...p, email: e.target.value }))}
+                autoComplete="username"
+                placeholder="admin@villasage.com"
+                required
+                className="border-border bg-background/50"
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input id="password" type="password" value={loginData.password} onChange={(e) => setLoginData((p) => ({ ...p, password: e.target.value }))} autoComplete="current-password" required />
+              <Label htmlFor="admin-password">Senha</Label>
+              <Input
+                id="admin-password"
+                type="password"
+                value={loginData.password}
+                onChange={(e) => setLoginData((p) => ({ ...p, password: e.target.value }))}
+                autoComplete="current-password"
+                placeholder="••••••••••••"
+                required
+                className="border-border bg-background/50"
+              />
             </div>
+
             {message && (
-              <p className={`text-sm ${message.type === "error" ? "text-red-400" : "text-cream"}`}>{message.text}</p>
+              <p className={`text-sm ${message.type === "error" ? "text-red-400" : "text-green-400"}`}>
+                {message.text}
+              </p>
             )}
-            <Button type="submit" className="w-full bg-whatsapp text-whatsapp-foreground hover:bg-whatsapp/90" disabled={isLoading}>
-              {isLoading ? "Entrando…" : "Entrar"}
+
+            <Button
+              type="submit"
+              className="w-full bg-gold font-medium text-black hover:bg-gold/90"
+              disabled={isLoading}
+            >
+              {isLoading ? "A entrar…" : "Entrar no Painel"}
             </Button>
           </form>
+
+          <div className="mt-6 border-t border-border/60 pt-4 text-center">
+            <Link href="/" className="text-xs text-muted-foreground transition hover:text-gold">
+              ← Voltar ao menu público
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ─── painel principal ──────────────────────────────────────────────────────
-
   const previewSrc = itemForm.previewUrl || itemForm.imageUrl;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Cabeçalho */}
-      <div className="mb-8 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-gold">Painel administrativo</p>
-          <h1 className="font-display text-4xl text-cream">Menu Villa Sage</h1>
+    <div className="flex min-h-screen bg-background text-foreground">
+      {/* ─── SIDEBAR FIXA PARA DESKTOP ─── */}
+      <aside className="hidden w-72 shrink-0 border-r border-border bg-card/60 backdrop-blur-2xl lg:flex lg:flex-col">
+        {/* Topo da Sidebar: Logo & Identidade */}
+        <div className="flex h-20 items-center gap-3.5 border-b border-border/80 px-6">
+          <Image
+            src="/logo.png"
+            alt="Villa Sage"
+            width={48}
+            height={36}
+            priority
+            className="h-10 w-14 rounded bg-white object-contain p-1 shadow-sm"
+          />
+          <div>
+            <h2 className="font-display text-lg font-semibold tracking-wide text-cream">Villa Sage</h2>
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-gold">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+              Painel Gestor
+            </div>
+          </div>
         </div>
-        <div className="flex gap-3">
-          <a href="/" className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-gold hover:text-gold">Ver menu público</a>
-          <Button variant="outline" onClick={handleLogout} className="border-border text-foreground hover:border-gold hover:text-gold">Sair</Button>
-        </div>
-      </div>
 
-      {/* Mensagem de estado */}
-      {message && (
-        <div
-          role="status"
-          className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
-            message.type === "error"
-              ? "border-red-500/30 bg-red-500/5 text-red-400"
-              : message.type === "success"
-                ? "border-green-500/30 bg-green-500/5 text-green-400"
-                : "border-gold/30 bg-gold/5 text-cream"
-          }`}
-        >
-          {message.text}
+        {/* Navegação da Sidebar */}
+        <div className="flex-1 space-y-6 overflow-y-auto px-4 py-6">
+          {/* Seção Principal */}
+          <div>
+            <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
+              Gestão
+            </p>
+            <nav className="mt-2 space-y-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("items")}
+                className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
+                  activeTab === "items"
+                    ? "bg-gold text-black shadow-md shadow-gold/20"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <UtensilsCrossed className="h-4 w-4" />
+                  Produtos & Bebidas
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    activeTab === "items" ? "bg-black/20 text-black" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {totalItemsCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("categories")}
+                className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
+                  activeTab === "categories"
+                    ? "bg-gold text-black shadow-md shadow-gold/20"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <FolderTree className="h-4 w-4" />
+                  Categorias
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    activeTab === "categories" ? "bg-black/20 text-black" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {menu.length}
+                </span>
+              </button>
+            </nav>
+          </div>
+
+          {/* Ações Rápidas */}
+          <div>
+            <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
+              Ações Rápidas
+            </p>
+            <div className="mt-2 space-y-2">
+              <Button
+                onClick={openNewItemModal}
+                className="w-full justify-start gap-2.5 bg-whatsapp text-whatsapp-foreground hover:bg-whatsapp/90 shadow-sm"
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar Produto
+              </Button>
+              <Button
+                variant="outline"
+                onClick={openNewCategoryModal}
+                className="w-full justify-start gap-2.5 border-border bg-background/50 hover:border-gold hover:text-gold"
+              >
+                <Plus className="h-4 w-4" />
+                Nova Categoria
+              </Button>
+            </div>
+          </div>
+
+          {/* Filtros rápidos por Grupo */}
+          <div>
+            <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
+              Grupos
+            </p>
+            <div className="mt-2 space-y-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGroupFilter("ALL");
+                  setActiveTab("items");
+                }}
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs transition ${
+                  selectedGroupFilter === "ALL" && activeTab === "items"
+                    ? "border border-gold/30 bg-gold/10 font-semibold text-gold"
+                    : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Layers className="h-3.5 w-3.5" />
+                  Todos os Grupos
+                </span>
+                <span>{totalItemsCount}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGroupFilter("Comida");
+                  setActiveTab("items");
+                }}
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs transition ${
+                  selectedGroupFilter === "Comida" && activeTab === "items"
+                    ? "border border-gold/30 bg-gold/10 font-semibold text-gold"
+                    : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <UtensilsCrossed className="h-3.5 w-3.5 text-gold" />
+                  Pratos & Comidas
+                </span>
+                <span>
+                  {menu
+                    .filter((c) => c.group === "Comida")
+                    .reduce((acc, c) => acc + c.items.length, 0)}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGroupFilter("Bebidas");
+                  setActiveTab("items");
+                }}
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs transition ${
+                  selectedGroupFilter === "Bebidas" && activeTab === "items"
+                    ? "border border-gold/30 bg-gold/10 font-semibold text-gold"
+                    : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Coffee className="h-3.5 w-3.5 text-amber-400" />
+                  Bebidas & Bar
+                </span>
+                <span>
+                  {menu
+                    .filter((c) => c.group === "Bebidas")
+                    .reduce((acc, c) => acc + c.items.length, 0)}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Rodapé da Sidebar: Ver Menu Público e Sair */}
+        <div className="border-t border-border/80 p-4 space-y-2">
+          <Link
+            href="/"
+            target="_blank"
+            className="flex w-full items-center justify-between rounded-xl border border-border bg-background/40 px-3.5 py-2.5 text-xs text-foreground transition hover:border-gold hover:text-gold"
+          >
+            <span className="flex items-center gap-2">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Ver Menu Público
+            </span>
+            <span className="text-[10px] text-muted-foreground">Abrir ↗</span>
+          </Link>
+
+          <Button
+            variant="ghost"
+            onClick={handleLogout}
+            className="w-full justify-start gap-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300"
+          >
+            <LogOut className="h-4 w-4" />
+            Terminar Sessão
+          </Button>
+        </div>
+      </aside>
+
+      {/* ─── SIDEBAR MOBILE (DRAWER OVERLAY) ─── */}
+      {mobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 flex lg:hidden">
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+          <div className="relative z-50 flex w-72 flex-col bg-card border-r border-border p-5">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-3">
+                <Image
+                  src="/logo.png"
+                  alt="Villa Sage"
+                  width={40}
+                  height={30}
+                  className="h-8 w-12 rounded bg-white object-contain p-1"
+                />
+                <span className="font-display font-semibold text-cream">Villa Sage</span>
+              </div>
+              <button
+                onClick={() => setMobileSidebarOpen(false)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-6 flex-1 space-y-3">
+              <Button
+                variant={activeTab === "items" ? "default" : "outline"}
+                onClick={() => {
+                  setActiveTab("items");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full justify-start gap-3 ${activeTab === "items" ? "bg-gold text-black" : ""}`}
+              >
+                <UtensilsCrossed className="h-4 w-4" />
+                Produtos ({totalItemsCount})
+              </Button>
+              <Button
+                variant={activeTab === "categories" ? "default" : "outline"}
+                onClick={() => {
+                  setActiveTab("categories");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full justify-start gap-3 ${activeTab === "categories" ? "bg-gold text-black" : ""}`}
+              >
+                <FolderTree className="h-4 w-4" />
+                Categorias ({menu.length})
+              </Button>
+              <div className="pt-4 border-t border-border space-y-2">
+                <Button
+                  onClick={() => {
+                    openNewItemModal();
+                    setMobileSidebarOpen(false);
+                  }}
+                  className="w-full justify-start gap-2 bg-whatsapp text-whatsapp-foreground"
+                >
+                  <Plus className="h-4 w-4" />
+                  Novo Produto
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    openNewCategoryModal();
+                    setMobileSidebarOpen(false);
+                  }}
+                  className="w-full justify-start gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Nova Categoria
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-t border-border pt-4 space-y-2">
+              <Link
+                href="/"
+                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-gold"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Ver Menu Público
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-2 text-xs text-red-400"
+              >
+                <LogOut className="h-4 w-4" />
+                Terminar Sessão
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_1.4fr]">
-        <div className="space-y-6">
+      {/* ─── CONTEÚDO PRINCIPAL (COM AS TABELAS) ─── */}
+      <main className="flex-1 overflow-x-hidden">
+        {/* Barra Superior / Header */}
+        <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-border bg-background/80 px-4 sm:px-8 backdrop-blur-xl">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileSidebarOpen(true)}
+              className="grid h-10 w-10 place-items-center rounded-xl border border-border text-foreground hover:border-gold lg:hidden"
+              aria-label="Abrir menu lateral"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div>
+              <h1 className="font-display text-2xl font-bold tracking-tight text-cream sm:text-3xl">
+                {activeTab === "items" ? "Tabela de Produtos" : "Tabela de Categorias"}
+              </h1>
+              <p className="hidden text-xs text-muted-foreground sm:block">
+                {activeTab === "items"
+                  ? "Gerir todos os pratos, bebidas, preços e fotografias em tabela detalhada."
+                  : "Organizar e reordenar as secções do cardápio."}
+              </p>
+            </div>
+          </div>
 
-          {/* Formulário de categoria */}
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h2 className="font-display text-3xl text-cream">{editingCategoryId ? "Editar categoria" : "Nova categoria"}</h2>
-            <form onSubmit={handleSaveCategory} className="mt-5 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="category-name">Nome</Label>
-                <Input id="category-name" value={categoryForm.name} onChange={(e) => setCategoryForm((p) => ({ ...p, name: e.target.value }))} placeholder="Ex.: Sobremesas" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="category-group">Grupo</Label>
-                <select id="category-group" value={categoryForm.group} onChange={(e) => setCategoryForm((p) => ({ ...p, group: e.target.value as Category["group"] }))} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-gold">
-                  <option value="Comida">Comida</option>
-                  <option value="Bebidas">Bebidas</option>
-                </select>
-              </div>
-              <Button type="submit" disabled={isLoading} className="w-full bg-gold text-primary-foreground hover:bg-gold/90">
-                {isLoading ? "A guardar…" : editingCategoryId ? "Guardar categoria" : "Adicionar categoria"}
+          <div className="flex items-center gap-2.5">
+            <Button
+              onClick={refreshMenu}
+              variant="outline"
+              size="sm"
+              disabled={isLoading}
+              className="gap-2 border-border text-xs hover:border-gold hover:text-gold"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Actualizar</span>
+            </Button>
+
+            {activeTab === "items" ? (
+              <Button
+                onClick={openNewItemModal}
+                size="sm"
+                className="gap-1.5 bg-gold font-medium text-black hover:bg-gold/90 text-xs shadow-sm"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Novo Produto</span>
               </Button>
-              {editingCategoryId && (
-                <Button type="button" variant="outline" className="w-full" onClick={() => { setEditingCategoryId(null); setCategoryForm({ name: "", group: "Comida" }); }}>
-                  Cancelar edição
-                </Button>
-              )}
-            </form>
-          </section>
+            ) : (
+              <Button
+                onClick={openNewCategoryModal}
+                size="sm"
+                className="gap-1.5 bg-gold font-medium text-black hover:bg-gold/90 text-xs shadow-sm"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Nova Categoria</span>
+              </Button>
+            )}
+          </div>
+        </header>
 
-          {/* Formulário de item */}
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h2 className="font-display text-3xl text-cream">{itemForm.editingId ? "Editar item" : "Novo item"}</h2>
-            <form onSubmit={handleSaveItem} className="mt-5 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="item-category">Categoria</Label>
-                <select id="item-category" value={itemForm.categoryId} onChange={(e) => setItemForm((p) => ({ ...p, categoryId: e.target.value }))} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-gold" required>
-                  {menu.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="item-name">Nome</Label>
-                <Input id="item-name" value={itemForm.name} onChange={(e) => setItemForm((p) => ({ ...p, name: e.target.value }))} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="item-price">Preço (Kz)</Label>
-                <Input id="item-price" type="number" min="0" step="1" value={itemForm.price} onChange={(e) => setItemForm((p) => ({ ...p, price: e.target.value }))} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="item-description">Descrição</Label>
-                <Textarea id="item-description" value={itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} />
-              </div>
+        {/* Feedback de mensagens */}
+        {message && (
+          <div className="px-4 pt-4 sm:px-8">
+            <div
+              role="status"
+              className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${
+                message.type === "error"
+                  ? "border-red-500/30 bg-red-500/10 text-red-300"
+                  : message.type === "success"
+                    ? "border-green-500/30 bg-green-500/10 text-green-300"
+                    : "border-gold/30 bg-gold/10 text-cream"
+              }`}
+            >
+              <span>{message.text}</span>
+              <button
+                type="button"
+                onClick={() => setMessage(null)}
+                className="text-xs opacity-70 hover:opacity-100"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
-              {/* Campo de fotografia */}
-              <div className="space-y-2">
-                <Label htmlFor="item-photo">
-                  Fotografia
-                  <span className="ml-1 text-xs text-muted-foreground">(JPEG, PNG, WebP, GIF, AVIF · máx. 10 MB)</span>
-                </Label>
+        {/* Corpo principal */}
+        <div className="p-4 sm:p-8 space-y-6">
+          {/* Cartões de Métricas Resumo */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="rounded-2xl border border-border bg-card/80 p-4 shadow-sm">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Total Produtos</p>
+              <p className="mt-1 font-display text-2xl font-bold text-cream sm:text-3xl">{totalItemsCount}</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card/80 p-4 shadow-sm">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Itens Ativos</p>
+              <p className="mt-1 font-display text-2xl font-bold text-green-400 sm:text-3xl">{activeItemsCount}</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card/80 p-4 shadow-sm">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Categorias</p>
+              <p className="mt-1 font-display text-2xl font-bold text-gold sm:text-3xl">{menu.length}</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card/80 p-4 shadow-sm">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Com Fotografia</p>
+              <p className="mt-1 font-display text-2xl font-bold text-cyan-400 sm:text-3xl">
+                {menu.reduce((acc, c) => acc + c.items.filter((i) => Boolean(i.image)).length, 0)}
+              </p>
+            </div>
+          </div>
 
-                {/* Pré-visualização */}
-                {previewSrc && (
-                  <div className="relative">
-                    <img
-                      src={previewSrc}
-                      alt="Pré-visualização"
-                      className="h-36 w-full rounded-xl object-cover"
-                    />
+          {/* ═════════════════════════════════════════════════════════════════ */}
+          {/* ABA 1: TABELA DE PRODUTOS / ITENS DO CARDÁPIO                    */}
+          {/* ═════════════════════════════════════════════════════════════════ */}
+          {activeTab === "items" && (
+            <div className="rounded-2xl border border-border bg-card/80 shadow-md backdrop-blur-xl">
+              {/* Barra de Filtros e Pesquisa */}
+              <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative flex-1 sm:max-w-xs">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Pesquisar por nome ou descrição…"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="h-9 border-border bg-background/50 pl-9 text-xs"
+                  />
+                  {searchTerm && (
                     <button
                       type="button"
-                      onClick={clearImage}
-                      className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-background/80 text-xs text-foreground hover:bg-red-500 hover:text-white"
-                      title="Remover pré-visualização"
+                      onClick={() => setSearchTerm("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
                     >
                       ✕
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                {/* Input de ficheiro */}
-                <Input
-                  ref={fileInputRef}
-                  id="item-photo"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-                  onChange={handleFileSelect}
-                  className="cursor-pointer"
-                />
-
-                {/* Estados do upload */}
-                {uploadState === "uploading" && (
-                  <p className="flex items-center gap-2 text-xs text-gold">
-                    <span className="inline-block h-3 w-3 animate-spin rounded-full border border-gold border-t-transparent" />
-                    A processar e carregar imagem…
-                  </p>
-                )}
-                {uploadState === "success" && (
-                  <p className="text-xs text-green-400">✓ Imagem carregada com sucesso.</p>
-                )}
-                {uploadState === "error" && (
-                  <p className="text-xs text-red-400">✕ Falha no upload. Tente novamente.</p>
-                )}
-
-                {/* Botão para remover imagem existente */}
-                {itemForm.imageUrl && itemForm.editingId && (
-                  <button
-                    type="button"
-                    onClick={() => void removeExistingImage(itemForm.editingId!)}
-                    disabled={isLoading}
-                    className="text-xs text-red-400 underline hover:text-red-300 disabled:opacity-50"
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Filtro por Categoria */}
+                  <select
+                    value={selectedCategoryFilter}
+                    onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                    className="h-9 rounded-lg border border-border bg-background px-3 text-xs text-foreground outline-none focus:border-gold"
                   >
-                    Remover fotografia guardada
-                  </button>
-                )}
+                    <option value="ALL">Todas as Categorias ({totalItemsCount})</option>
+                    {menu.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name} ({cat.items.length})
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Filtro por Grupo */}
+                  <div className="inline-flex rounded-lg border border-border bg-background p-0.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGroupFilter("ALL")}
+                      className={`rounded-md px-2.5 py-1 transition ${
+                        selectedGroupFilter === "ALL" ? "bg-gold text-black font-medium" : "text-muted-foreground"
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGroupFilter("Comida")}
+                      className={`rounded-md px-2.5 py-1 transition ${
+                        selectedGroupFilter === "Comida" ? "bg-gold text-black font-medium" : "text-muted-foreground"
+                      }`}
+                    >
+                      Comida
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGroupFilter("Bebidas")}
+                      className={`rounded-md px-2.5 py-1 transition ${
+                        selectedGroupFilter === "Bebidas" ? "bg-gold text-black font-medium" : "text-muted-foreground"
+                      }`}
+                    >
+                      Bebidas
+                    </button>
+                  </div>
+                </div>
               </div>
 
+              {/* TABELA DE PRODUTOS */}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-background/40">
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="w-16 text-center text-xs">Foto</TableHead>
+                      <TableHead className="min-w-[200px] text-xs">Produto & Descrição</TableHead>
+                      <TableHead className="text-xs">Categoria</TableHead>
+                      <TableHead className="text-xs">Grupo</TableHead>
+                      <TableHead className="text-right text-xs">Preço</TableHead>
+                      <TableHead className="text-center text-xs">Estado</TableHead>
+                      <TableHead className="text-center text-xs">Ordem</TableHead>
+                      <TableHead className="text-right text-xs">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allFilteredItems.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="h-40 text-center text-sm text-muted-foreground">
+                          {searchTerm || selectedCategoryFilter !== "ALL" || selectedGroupFilter !== "ALL"
+                            ? "Nenhum produto corresponde aos filtros aplicados."
+                            : "Nenhum produto cadastrado ainda. Clique em 'Novo Produto' para começar."}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      allFilteredItems.map(({ item, category, indexInCategory }) => {
+                        const imgSrc = imageSource(item.image);
+                        return (
+                          <TableRow key={item.id} className="border-border hover:bg-muted/40 transition">
+                            {/* Miniatura */}
+                            <TableCell className="text-center py-2.5">
+                              {imgSrc ? (
+                                <img
+                                  src={imgSrc}
+                                  alt={item.name}
+                                  className="mx-auto h-11 w-11 rounded-lg object-cover border border-border shadow-sm"
+                                />
+                              ) : (
+                                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-lg border border-dashed border-border bg-background/50 text-muted-foreground">
+                                  <ImageIcon className="h-4 w-4 opacity-50" />
+                                </div>
+                              )}
+                            </TableCell>
+
+                            {/* Nome & Descrição */}
+                            <TableCell className="py-2.5">
+                              <p className="font-medium text-cream text-sm">{item.name}</p>
+                              {item.description && (
+                                <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground max-w-sm">
+                                  {item.description}
+                                </p>
+                              )}
+                            </TableCell>
+
+                            {/* Categoria */}
+                            <TableCell className="py-2.5 text-xs text-foreground">
+                              <Badge variant="outline" className="border-border/80 bg-background/40 font-normal">
+                                {category.name}
+                              </Badge>
+                            </TableCell>
+
+                            {/* Grupo */}
+                            <TableCell className="py-2.5 text-xs">
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                  category.group === "Comida"
+                                    ? "bg-gold/10 text-gold border border-gold/30"
+                                    : "bg-cyan-500/10 text-cyan-300 border border-cyan-500/30"
+                                }`}
+                              >
+                                {category.group === "Comida" ? (
+                                  <UtensilsCrossed className="h-2.5 w-2.5" />
+                                ) : (
+                                  <Coffee className="h-2.5 w-2.5" />
+                                )}
+                                {category.group}
+                              </span>
+                            </TableCell>
+
+                            {/* Preço */}
+                            <TableCell className="py-2.5 text-right font-medium text-gold text-sm whitespace-nowrap">
+                              {formatPrice(Number(item.price ?? 0))}
+                            </TableCell>
+
+                            {/* Estado Ativo/Inativo */}
+                            <TableCell className="py-2.5 text-center">
+                              <button
+                                type="button"
+                                disabled={isLoading}
+                                onClick={() =>
+                                  void saveChange(
+                                    "PATCH",
+                                    { type: "item", id: item.id, isActive: !item.is_active },
+                                    item.is_active ? "Item desativado." : "Item ativado.",
+                                  )
+                                }
+                                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition ${
+                                  item.is_active
+                                    ? "bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20"
+                                    : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
+                                }`}
+                              >
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full ${
+                                    item.is_active ? "bg-green-400" : "bg-muted-foreground"
+                                  }`}
+                                />
+                                {item.is_active ? "Ativo" : "Inativo"}
+                              </button>
+                            </TableCell>
+
+                            {/* Reordenação */}
+                            <TableCell className="py-2.5 text-center whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={isLoading || indexInCategory === 0}
+                                  onClick={() => void moveItem(category, indexInCategory, "up")}
+                                  className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted-foreground hover:border-gold hover:text-gold disabled:opacity-30"
+                                  title="Mover para cima"
+                                >
+                                  <ArrowUp className="h-3 w-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isLoading || indexInCategory === category.items.length - 1}
+                                  onClick={() => void moveItem(category, indexInCategory, "down")}
+                                  className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted-foreground hover:border-gold hover:text-gold disabled:opacity-30"
+                                  title="Mover para baixo"
+                                >
+                                  <ArrowDown className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </TableCell>
+
+                            {/* Ações */}
+                            <TableCell className="py-2.5 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center justify-end gap-1.5">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openEditItemModal(category, item)}
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-gold"
+                                  title="Editar Produto"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={isLoading}
+                                  onClick={() => {
+                                    if (window.confirm(`Eliminar "${item.name}" definitivamente?`)) {
+                                      void saveChange("DELETE", { type: "item", id: item.id }, "Item eliminado.");
+                                    }
+                                  }}
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400"
+                                  title="Eliminar Produto"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Rodapé da tabela */}
+              <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted-foreground">
+                <span>
+                  A mostrar <strong>{allFilteredItems.length}</strong> de {totalItemsCount} produtos
+                </span>
+                <span>Villa Sage &copy; {new Date().getFullYear()}</span>
+              </div>
+            </div>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════════ */}
+          {/* ABA 2: TABELA DE CATEGORIAS                                      */}
+          {/* ═════════════════════════════════════════════════════════════════ */}
+          {activeTab === "categories" && (
+            <div className="rounded-2xl border border-border bg-card/80 shadow-md backdrop-blur-xl">
+              <div className="flex items-center justify-between border-b border-border p-4">
+                <div>
+                  <h3 className="font-display text-lg font-semibold text-cream">Gestão de Categorias</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Ordene e gira as seções exibidas no menu digital público.
+                  </p>
+                </div>
+                <Button
+                  onClick={openNewCategoryModal}
+                  size="sm"
+                  className="gap-1.5 bg-gold font-medium text-black hover:bg-gold/90 text-xs"
+                >
+                  <Plus className="h-4 w-4" />
+                  Nova Categoria
+                </Button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-background/40">
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="w-12 text-center text-xs">#</TableHead>
+                      <TableHead className="min-w-[180px] text-xs">Nome da Categoria</TableHead>
+                      <TableHead className="text-xs">Grupo</TableHead>
+                      <TableHead className="text-center text-xs">Qtd. Produtos</TableHead>
+                      <TableHead className="text-center text-xs">Estado</TableHead>
+                      <TableHead className="text-center text-xs">Ordem</TableHead>
+                      <TableHead className="text-right text-xs">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {menu.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-32 text-center text-sm text-muted-foreground">
+                          Nenhuma categoria cadastrada.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      menu.map((category, index) => (
+                        <TableRow key={category.id} className="border-border hover:bg-muted/40 transition">
+                          <TableCell className="text-center font-mono text-xs text-muted-foreground">
+                            {index + 1}
+                          </TableCell>
+
+                          <TableCell className="font-medium text-cream text-sm">
+                            {category.name}
+                          </TableCell>
+
+                          <TableCell>
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                category.group === "Comida"
+                                  ? "bg-gold/10 text-gold border border-gold/30"
+                                  : "bg-cyan-500/10 text-cyan-300 border border-cyan-500/30"
+                              }`}
+                            >
+                              {category.group}
+                            </span>
+                          </TableCell>
+
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="border-border bg-background/50 text-xs">
+                              {category.items.length} produto(s)
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="text-center">
+                            <button
+                              type="button"
+                              disabled={isLoading}
+                              onClick={() =>
+                                void saveChange(
+                                  "PATCH",
+                                  { type: "category", id: category.id, isActive: !category.is_active },
+                                  category.is_active ? "Categoria desativada." : "Categoria ativada.",
+                                )
+                              }
+                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition ${
+                                category.is_active
+                                  ? "bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20"
+                                  : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
+                              }`}
+                            >
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  category.is_active ? "bg-green-400" : "bg-muted-foreground"
+                                }`}
+                              />
+                              {category.is_active ? "Ativo" : "Inativo"}
+                            </button>
+                          </TableCell>
+
+                          <TableCell className="text-center whitespace-nowrap">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={isLoading || index === 0}
+                                onClick={() => void moveCategory(index, "up")}
+                                className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted-foreground hover:border-gold hover:text-gold disabled:opacity-30"
+                                title="Mover para cima"
+                              >
+                                <ArrowUp className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isLoading || index === menu.length - 1}
+                                onClick={() => void moveCategory(index, "down")}
+                                className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted-foreground hover:border-gold hover:text-gold disabled:opacity-30"
+                                title="Mover para baixo"
+                              >
+                                <ArrowDown className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="text-right whitespace-nowrap">
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditCategoryModal(category)}
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-gold"
+                                title="Editar Categoria"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={isLoading}
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `Eliminar a categoria "${category.name}" e TODOS os seus ${category.items.length} produtos?`,
+                                    )
+                                  ) {
+                                    void saveChange("DELETE", { type: "category", id: category.id }, "Categoria eliminada.");
+                                  }
+                                }}
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400"
+                                title="Eliminar Categoria"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* ─── MODAL (DIALOG) PARA ADICIONAR / EDITAR PRODUTO ─── */}
+      <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
+        <DialogContent className="max-w-lg border-border bg-card p-6 shadow-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl text-cream">
+              {itemForm.editingId ? "Editar Produto" : "Novo Produto"}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Preencha os detalhes do prato ou bebida para exibição no cardápio público.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveItem} className="mt-4 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="item-category" className="text-xs">
+                Categoria *
+              </Label>
+              <select
+                id="item-category"
+                value={itemForm.categoryId}
+                onChange={(e) => setItemForm((p) => ({ ...p, categoryId: e.target.value }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-gold"
+                required
+              >
+                {menu.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name} ({category.group})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="item-name" className="text-xs">
+                Nome do Produto *
+              </Label>
+              <Input
+                id="item-name"
+                value={itemForm.name}
+                onChange={(e) => setItemForm((p) => ({ ...p, name: e.target.value }))}
+                placeholder="Ex.: Choco Frito com Batatas"
+                required
+                className="border-input bg-background"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="item-price" className="text-xs">
+                Preço em Kwanzas (Kz) *
+              </Label>
+              <Input
+                id="item-price"
+                type="number"
+                min="0"
+                step="1"
+                value={itemForm.price}
+                onChange={(e) => setItemForm((p) => ({ ...p, price: e.target.value }))}
+                placeholder="Ex.: 8500"
+                required
+                className="border-input bg-background"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="item-description" className="text-xs">
+                Descrição (opcional)
+              </Label>
+              <Textarea
+                id="item-description"
+                value={itemForm.description}
+                onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))}
+                placeholder="Ingredientes, acompanhamentos ou detalhes do prato…"
+                rows={3}
+                className="border-input bg-background"
+              />
+            </div>
+
+            {/* Fotografia */}
+            <div className="space-y-2 rounded-xl border border-border/80 bg-background/50 p-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor={fileInputId} className="text-xs font-semibold">
+                  Fotografia do Produto
+                </Label>
+                <span className="text-[10px] text-muted-foreground">JPEG, PNG, WebP · máx. 10 MB</span>
+              </div>
+
+              {previewSrc && (
+                <div className="relative overflow-hidden rounded-xl border border-border">
+                  <img src={previewSrc} alt="Pré-visualização" className="h-40 w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={clearImage}
+                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white hover:bg-red-500 transition"
+                    title="Remover pré-visualização"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              <Input
+                ref={fileInputRef}
+                id={fileInputId}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                onChange={handleFileSelect}
+                className="cursor-pointer text-xs"
+              />
+
+              {uploadState === "uploading" && (
+                <p className="flex items-center gap-2 text-xs text-gold">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border border-gold border-t-transparent" />
+                  A optimizar e enviar imagem…
+                </p>
+              )}
+
+              {itemForm.imageUrl && itemForm.editingId && (
+                <button
+                  type="button"
+                  onClick={() => void removeExistingImage(itemForm.editingId!)}
+                  disabled={isLoading}
+                  className="text-xs text-red-400 underline hover:text-red-300"
+                >
+                  Remover fotografia permanentemente
+                </button>
+              )}
+            </div>
+
+            <DialogFooter className="mt-6 gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsItemModalOpen(false)}
+                className="border-border text-xs"
+              >
+                Cancelar
+              </Button>
               <Button
                 type="submit"
-                disabled={isLoading || uploadState === "uploading" || !menu.length}
-                className="w-full bg-whatsapp text-whatsapp-foreground hover:bg-whatsapp/90"
+                disabled={isLoading || uploadState === "uploading"}
+                className="bg-gold font-medium text-black hover:bg-gold/90 text-xs"
               >
                 {isLoading || uploadState === "uploading"
                   ? "A guardar…"
                   : itemForm.editingId
-                    ? "Guardar item"
-                    : "Adicionar item ao menu"}
+                    ? "Guardar Alterações"
+                    : "Criar Produto"}
               </Button>
-              {itemForm.editingId && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    clearImage();
-                    setItemForm(emptyItemForm(itemForm.categoryId));
-                    setUploadState("idle");
-                  }}
-                >
-                  Cancelar edição
-                </Button>
-              )}
-            </form>
-          </section>
-        </div>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-        {/* Resumo do menu */}
-        <section className="rounded-2xl border border-border bg-card p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-3xl text-cream">Resumo do menu</h2>
-            <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">{menu.length} categorias</span>
-          </div>
-          <div className="space-y-4">
-            {menu.map((category, categoryIndex) => (
-              <div key={category.id} className="rounded-xl border border-border bg-background/50 p-4">
-                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-gold">{category.group}</p>
-                    <h3 className="font-display text-2xl text-cream">{category.name}</h3>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button type="button" disabled={isLoading || categoryIndex === 0} onClick={() => void moveCategory(categoryIndex, "up")} title="Mover categoria para cima" className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-40">↑</button>
-                    <button type="button" disabled={isLoading || categoryIndex === menu.length - 1} onClick={() => void moveCategory(categoryIndex, "down")} title="Mover categoria para baixo" className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-40">↓</button>
-                    <button type="button" disabled={isLoading} onClick={() => void saveChange("PATCH", { type: "category", id: category.id, isActive: !category.is_active }, category.is_active ? "Categoria desativada." : "Categoria ativada.")} className="rounded-full border border-border px-2.5 py-1 text-xs">{category.is_active ? "Ativo" : "Inativo"}</button>
-                    <button type="button" onClick={() => { setEditingCategoryId(category.id); setCategoryForm({ name: category.name, group: category.group }); }} className="rounded-full border border-border px-2.5 py-1 text-xs">Editar</button>
-                    <button type="button" disabled={isLoading} onClick={() => { if (window.confirm(`Eliminar a categoria "${category.name}" e todos os seus itens?`)) void saveChange("DELETE", { type: "category", id: category.id }, "Categoria eliminada."); }} className="rounded-full border border-red-500/40 px-2.5 py-1 text-xs text-red-400">Eliminar</button>
-                  </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {category.items.length === 0
-                    ? <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">Nenhum item nesta categoria ainda.</p>
-                    : category.items.map((item, itemIndex) => (
-                      <div key={item.id} className="overflow-hidden rounded-lg border border-border bg-card">
-                        {item.image && <img src={imageSource(item.image)} alt={item.name} className="h-28 w-full object-cover" />}
-                        <div className="space-y-2 p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <h4 className="font-display text-xl text-cream">{item.name}</h4>
-                            <span className="text-sm font-medium text-gold">{formatPrice(Number(item.price ?? 0))}</span>
-                          </div>
-                          {item.description && <p className="text-sm text-muted-foreground">{item.description}</p>}
-                          <div className="flex flex-wrap items-center gap-1.5 pt-2">
-                            <button type="button" disabled={isLoading || itemIndex === 0} onClick={() => void moveItem(category, itemIndex, "up")} title="Mover item para cima" className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-40">↑</button>
-                            <button type="button" disabled={isLoading || itemIndex === category.items.length - 1} onClick={() => void moveItem(category, itemIndex, "down")} title="Mover item para baixo" className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition hover:border-gold hover:text-gold disabled:opacity-40">↓</button>
-                            <button type="button" disabled={isLoading} onClick={() => void saveChange("PATCH", { type: "item", id: item.id, isActive: !item.is_active }, item.is_active ? "Item desativado." : "Item ativado.")} className="rounded-full border border-border px-2.5 py-1 text-[11px]">{item.is_active ? "Ativo" : "Inativo"}</button>
-                            <button type="button" onClick={() => beginEditingItem(category, item)} className="rounded-full border border-border px-2.5 py-1 text-[11px]">Editar</button>
-                            <button type="button" disabled={isLoading} onClick={() => { if (window.confirm(`Eliminar "${item.name}"?`)) void saveChange("DELETE", { type: "item", id: item.id }, "Item eliminado."); }} className="rounded-full border border-red-500/40 px-2.5 py-1 text-[11px] text-red-400">Eliminar</button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
+      {/* ─── MODAL (DIALOG) PARA ADICIONAR / EDITAR CATEGORIA ─── */}
+      <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
+        <DialogContent className="max-w-md border-border bg-card p-6 shadow-2xl sm:rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl text-cream">
+              {editingCategoryId ? "Editar Categoria" : "Nova Categoria"}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Categorias agrupam os pratos e bebidas no menu.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveCategory} className="mt-4 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="category-name-modal" className="text-xs">
+                Nome da Categoria *
+              </Label>
+              <Input
+                id="category-name-modal"
+                value={categoryForm.name}
+                onChange={(e) => setCategoryForm((p) => ({ ...p, name: e.target.value }))}
+                placeholder="Ex.: Sobremesas, Vinhos, Carnes"
+                required
+                className="border-input bg-background"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="category-group-modal" className="text-xs">
+                Grupo *
+              </Label>
+              <select
+                id="category-group-modal"
+                value={categoryForm.group}
+                onChange={(e) => setCategoryForm((p) => ({ ...p, group: e.target.value as Category["group"] }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-gold"
+              >
+                <option value="Comida">Comida (Pratos, Entradas, Sobremesas)</option>
+                <option value="Bebidas">Bebidas (Vinhos, Cervejas, Cocktails, Sumos)</option>
+              </select>
+            </div>
+
+            <DialogFooter className="mt-6 gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="border-border text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="bg-gold font-medium text-black hover:bg-gold/90 text-xs"
+              >
+                {isLoading ? "A guardar…" : editingCategoryId ? "Guardar Categoria" : "Criar Categoria"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -17,13 +17,6 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!adminCredentialsAreConfigured()) {
-    return NextResponse.json(
-      { error: "Configure DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD e ADMIN_SESSION_SECRET." },
-      { status: 503 },
-    );
-  }
-
   let body: { email?: unknown; password?: unknown };
   try {
     body = (await request.json()) as typeof body;
@@ -35,7 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Informe email e senha." }, { status: 400 });
   }
 
-  if (!verifyAdminCredentials(body.email, body.password)) {
+  if (!(await verifyAdminCredentials(body.email, body.password))) {
     return NextResponse.json({ error: "Email ou senha inválidos." }, { status: 401 });
   }
 

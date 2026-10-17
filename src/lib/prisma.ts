@@ -2,13 +2,22 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
+export function getDatabaseUrl(): string | undefined {
+  return (
+    process.env["DATABASE_URL"] ||
+    process.env["POSTGRES_PRISMA_URL"] ||
+    process.env["POSTGRES_URL"] ||
+    process.env["POSTGRES_URL_NON_POOLING"]
+  );
+}
+
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient;
   pgPool?: pg.Pool;
 };
 
 function createPrismaClient(): PrismaClient {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = getDatabaseUrl();
   if (!connectionString) {
     return new PrismaClient();
   }

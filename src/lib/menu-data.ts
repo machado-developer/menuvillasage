@@ -1,7 +1,7 @@
 import type { Category, MenuItem } from "@/data/menu";
 import { beveragePhotoCredits } from "@/data/beverage-photo-credits";
 import { fallbackMenu } from "@/lib/fallback-menu";
-import { prisma } from "@/lib/prisma";
+import { getDatabaseUrl, prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
 type MenuCategoryWithItems = Prisma.MenuCategoryGetPayload<{ include: { items: true } }>;
@@ -34,7 +34,7 @@ function toCategoryModel(row: MenuCategoryWithItems): Category {
 }
 
 export async function getPublicMenu(): Promise<Category[]> {
-  if (!process.env.DATABASE_URL) {
+  if (!getDatabaseUrl()) {
     return fallbackMenu;
   }
 
@@ -62,7 +62,7 @@ export async function getPublicMenu(): Promise<Category[]> {
 }
 
 export async function getAdminMenu(): Promise<Category[]> {
-  if (!process.env.DATABASE_URL) {
+  if (!getDatabaseUrl()) {
     return fallbackMenu;
   }
 

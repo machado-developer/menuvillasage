@@ -12,6 +12,7 @@
     "db:push": "node scripts/prisma-command.mjs db push",
     "db:studio": "node scripts/prisma-command.mjs studio",
     "db:seed": "node scripts/seed.mjs",
+    "admin:create": "node scripts/create-admin.mjs",
     "test:blob": "node scripts/test-blob.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",

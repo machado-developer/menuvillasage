@@ -37,7 +37,7 @@ npm run db:deploy
 
 O comando carrega `.env.local` antes de iniciar o Prisma CLI, tanto em Windows como em Linux/macOS.
 
-O administrador inicial é definido exclusivamente por `ADMIN_EMAIL` e `ADMIN_PASSWORD` no servidor. Não é preciso criar uma conta numa plataforma de autenticação.
+O administrador inicial pode ser definido pelas variáveis `ADMIN_EMAIL` e `ADMIN_PASSWORD` no `.env.local` ou criado directamente na base de dados com o comando `npm run admin:create`.
 
 ## Desenvolvimento
 
@@ -48,9 +48,21 @@ npm run dev
 
 Abra http://localhost:3000.
 
-## Painel administrativo
+## Autenticação e Painel Administrativo
 
-Aceda a `/admin` e use o email e a senha definidos no `.env.local`. A sessão é assinada no servidor e enviada num cookie `HttpOnly`.
+Aceda a `/login` ou `/admin` para entrar no painel. O sistema suporta utilizadores na base de dados PostgreSQL (tabela `admin_users` com encriptação `scrypt`) e credenciais de fallback em `.env.local`. A sessão é assinada criptograficamente no servidor e enviada num cookie `HttpOnly` seguro (`villa_sage_admin`).
+
+### Criar ou actualizar administrador na base de dados:
+
+```sh
+# Cria ou actualiza com as credenciais do .env.local
+npm run admin:create
+
+# Ou especifique email, senha e nome:
+node scripts/create-admin.mjs admin@villasage.com MinhaSenhaForte2026! "Gestor Villa Sage"
+```
+
+### Funcionalidades do painel:
 
 - adicionar e editar categorias
 - adicionar e editar produtos
