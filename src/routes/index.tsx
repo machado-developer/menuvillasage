@@ -3,44 +3,57 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowDown, House, MapPin, QrCode, Search, Utensils, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import hero from "@/assets/hero.jpg";
 import bebidas from "@/assets/bebidas.jpg";
 import { OrderDialog } from "@/components/OrderDialog";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
-import { ADDRESS, categories, formatKz, WHATSAPP_DISPLAY, WHATSAPP_NUMBER, type MenuItem } from "@/data/menu";
+import { ADDRESS, categories, formatKz, WHATSAPP_DISPLAY, WHATSAPP_NUMBER, type Category, type MenuItem } from "@/data/menu";
 
 const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
-export default function Index() {
+export default function Index({ initialCategories = categories }: { initialCategories?: Category[] }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<MenuItem | null>(null);
+  const [menu, setMenu] = useState<Category[]>(initialCategories);
+
+  useEffect(() => {
+    setMenu(initialCategories);
+  }, [initialCategories]);
 
   const filtered = useMemo(() => {
     const q = normalize(query.trim());
-    if (!q) return categories;
-    return categories
+    if (!q) return menu;
+    return menu
       .map((c) => ({ ...c, items: c.items.filter((i) => normalize(i.name + " " + (i.description ?? "")).includes(q)) }))
       .filter((c) => c.items.length > 0);
-  }, [query]);
+  }, [menu, query]);
 
   return (
     <div id="inicio" className="min-h-screen pb-20 md:pb-0">
       <header className="border-b border-border/70 bg-background">
         <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between px-5 lg:px-8">
           <a href="#inicio" className="group flex items-center gap-3" aria-label="Villa Sage — início">
-            <span className="grid h-9 w-9 place-items-center rounded-full border border-gold/50 font-display text-lg text-gold">V</span>
-            <span className="leading-none">
-              <span className="block font-display text-xl text-cream">Villa Sage</span>
-              <span className="mt-1 block text-[9px] uppercase tracking-[0.28em] text-gold">Menu</span>
-            </span>
+            <Image
+              src="/logo.png"
+              alt="Villa Sage — Cuidamos da sua estadia"
+              width={90}
+              height={64}
+              priority
+              className="h-14 w-20 rounded-md bg-white object-contain p-1 sm:h-16 sm:w-[90px]"
+            />
+            <span className="text-[9px] uppercase tracking-[0.28em] text-gold">Menu</span>
           </a>
           <nav className="hidden items-center gap-8 text-xs text-muted-foreground md:flex" aria-label="Navegação principal">
             <a href="#inicio" className="transition hover:text-gold">Início</a>
             <a href="#menu" className="text-gold">Menu</a>
             <a href="#contactos" className="transition hover:text-gold">Contactos</a>
+            <Link href="/admin" className="transition hover:text-gold">Admin</Link>
           </nav>
           <div className="flex items-center gap-2">
+            <Link href="/admin" aria-label="Página administrativa" className="grid h-10 w-10 place-items-center rounded-xl border border-border text-muted-foreground transition hover:border-gold hover:text-gold">
+              <Utensils className="h-4 w-4" />
+            </Link>
             <Link href="/qr" aria-label="QR Code do menu" className="grid h-10 w-10 place-items-center rounded-xl border border-border text-muted-foreground transition hover:border-gold hover:text-gold">
               <QrCode className="h-4 w-4" />
             </Link>
@@ -161,6 +174,28 @@ export default function Index() {
                           className="object-cover transition duration-500 group-hover:scale-[1.03]"
                         />
                         <div className="absolute inset-0 bg-linear-to-t from-card via-transparent to-transparent" />
+                        {item.imageCredit && (
+                          <div className="absolute bottom-2 left-2 z-10 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-md bg-background/85 px-2 py-1 text-[9px] text-foreground backdrop-blur-sm">
+                            <a
+                              href={item.imageCredit.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={`${item.imageCredit.title} — ${item.imageCredit.creator}`}
+                              className="truncate underline decoration-foreground/50 underline-offset-2"
+                            >
+                              Foto: {item.imageCredit.creator}
+                            </a>
+                            <span aria-hidden="true">·</span>
+                            <a
+                              href={item.imageCredit.licenseUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="shrink-0 underline decoration-foreground/50 underline-offset-2"
+                            >
+                              {item.imageCredit.license}
+                            </a>
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-1 flex-col justify-between p-4 sm:p-5">
                         <div>

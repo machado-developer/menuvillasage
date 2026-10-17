@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import hero from "@/assets/hero.jpg";
 import { ADDRESS, WHATSAPP_NUMBER } from "@/data/menu";
+import { getPublicMenu } from "@/lib/menu-data";
 import { SITE_URL } from "@/lib/seo";
 import MenuPage from "@/routes/index";
 
@@ -48,7 +49,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
+export const dynamic = "force-dynamic";
+
+export default async function Page() {
+  const initialCategories = await getPublicMenu();
+
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -93,7 +98,7 @@ export default function Page() {
           __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
         }}
       />
-      <MenuPage />
+      <MenuPage initialCategories={initialCategories} />
     </>
   );
 }
