@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MenuGroup {
+  Comida
+  Bebidas
+}
+
+model MenuCategory {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String
+  group     MenuGroup
+  isActive  Boolean    @default(true) @map("is_active")
+  sortOrder Int        @default(0) @map("sort_order")
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  items     MenuItem[]
+
+  @@index([sortOrder])
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          String       @id @default(uuid()) @db.Uuid
+  categoryId  String       @map("category_id") @db.Uuid
+  name        String
+  description String?
+  price       Decimal      @default(0) @db.Decimal(10, 2)
+  imageUrl    String?      @map("image_url") @db.Text
+  isActive    Boolean      @default(true) @map("is_active")
+  sortOrder   Int          @default(0) @map("sort_order")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@map("menu_items")
+}
