@@ -20,11 +20,19 @@ describe("App routing", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Abrir carrinho com 1 item" }));
     expect(screen.getByRole("heading", { name: "Carrinho" })).toBeInTheDocument();
-    expect(screen.getByText("Lagosta Grelhada")).toBeInTheDocument();
+    expect(screen.getAllByText("Lagosta Grelhada")).toHaveLength(2);
 
     const orderLink = screen.getByRole("link", { name: "Enviar pedido pelo WhatsApp" });
     const message = new URL(orderLink.getAttribute("href")!).searchParams.get("text");
     expect(message).toContain("Lagosta Grelhada");
     expect(message).toContain("Total do pedido:");
+  });
+
+  it("adds products directly from their menu cards", () => {
+    render(<MenuPage />);
+    fireEvent.change(screen.getByPlaceholderText("Pesquisar pratos ou bebidas…"), { target: { value: "lagosta" } });
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar Lagosta Grelhada ao carrinho" }));
+
+    expect(screen.getByRole("button", { name: "Abrir carrinho com 1 item" })).toBeInTheDocument();
   });
 });

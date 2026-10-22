@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowDown, ChevronDown, House, LogIn, MapPin, Search, Utensils, X } from "lucide-react";
+import { ArrowDown, ChevronDown, House, LogIn, MapPin, Search, ShoppingCart, Utensils, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import hero from "@/assets/hero.jpg";
 import bebidas from "@/assets/bebidas.jpg";
@@ -313,14 +313,35 @@ export default function Index({ initialCategories = categories }: { initialCateg
                             </div>
                           )}
                         </div>
+                        <div className="mt-5 flex gap-2">
                         <button
                           type="button"
                           onClick={() => setSelected(item)}
                           aria-label={`Encomendar ${item.name} pelo WhatsApp`}
-                          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-whatsapp/45 bg-whatsapp/10 px-4 py-2.5 text-xs text-cream transition-colors hover:border-whatsapp hover:bg-whatsapp hover:text-whatsapp-foreground"
+                          className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-whatsapp/45 bg-whatsapp/10 px-2 py-2.5 text-[11px] text-cream transition-colors hover:border-whatsapp hover:bg-whatsapp hover:text-whatsapp-foreground sm:gap-2 sm:px-3 sm:text-xs"
                         >
-                          <WhatsAppIcon className="h-4 w-4" /> Encomendar
+                          <WhatsAppIcon className="h-4 w-4 shrink-0" /> Encomendar
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (item.variants?.length) {
+                              setSelected(item);
+                              return;
+                            }
+                            addToCart({
+                              id: `${item.id}:`,
+                              name: item.name,
+                              qty: 1,
+                              unit: item.price ?? 0,
+                            });
+                          }}
+                          aria-label={`Adicionar ${item.name} ao carrinho`}
+                          className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-gold/45 bg-gold/10 px-2 py-2.5 text-[11px] text-gold transition-colors hover:border-gold hover:bg-gold/20 sm:gap-2 sm:px-3 sm:text-xs"
+                        >
+                          <ShoppingCart className="h-4 w-4 shrink-0" /> Adicionar
+                        </button>
+                      </div>
                       </div>
                     </li>
                   ))}
