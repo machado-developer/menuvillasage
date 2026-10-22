@@ -6,10 +6,12 @@ import { ArrowDown, ChevronDown, House, LogIn, MapPin, Search, Utensils, X } fro
 import { useEffect, useMemo, useRef, useState } from "react";
 import hero from "@/assets/hero.jpg";
 import bebidas from "@/assets/bebidas.jpg";
+import { CartDialog } from "@/components/CartDialog";
 import { OrderDialog } from "@/components/OrderDialog";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import {
   ADDRESS,
+  type CartLine,
   categories,
   formatKz,
   WHATSAPP_PRIMARY_DISPLAY,
@@ -28,10 +30,25 @@ const MORE_STEP = 3;
 export default function Index({ initialCategories = categories }: { initialCategories?: Category[] }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<MenuItem | null>(null);
+  const [cart, setCart] = useState<CartLine[]>([]);
   const [menu, setMenu] = useState<Category[]>(initialCategories);
   const [visibleCount, setVisibleCount] = useState(INITIAL_CATEGORIES);
   const [isExpanding, setIsExpanding] = useState(false);
   const newSectionRef = useRef<HTMLDivElement | null>(null);
+
+  function addToCart(line: CartLine) {
+    setCart((current) => {
+      const existing = current.find((item) => item.id === line.id);
+      if (!existing) return [...current, line];
+      return current.map((item) =>
+        item.id === line.id ? { ...item, qty: Math.min(99, item.qty + line.qty) } : item,
+      );
+    });
+  }
+
+  function updateCartQuantity(id: string, qty: number) {
+    setCart((current) => current.map((item) => (item.id === id ? { ...item, qty } : item)));
+  }
 
   useEffect(() => {
     setMenu(initialCategories);
@@ -393,7 +410,14 @@ export default function Index({ initialCategories = categories }: { initialCateg
         </a>
       </nav>
 
-      <OrderDialog item={selected} onClose={() => setSelected(null)} />
+      <OrderDialog item={selected} onClose={() => setSelected(null)} onAddToCart={addToCart} />
+      {cart.length > 0 && (
+        <CartDialog
+          items={cart}
+          onQuantityChange={updateCartQuantity}
+          onRemove={(id) => setCart((current) => current.filter((item) => item.id !== id))}
+        />
+      )}
     </div>
   );
 }

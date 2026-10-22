@@ -8,11 +8,20 @@ import {
   WHATSAPP_PRIMARY_NUMBER,
   WHATSAPP_SECONDARY_DISPLAY,
   WHATSAPP_SECONDARY_NUMBER,
+  type CartLine,
   type MenuItem,
 } from "@/data/menu";
 import { WhatsAppIcon } from "./WhatsAppIcon";
 
-export function OrderDialog({ item, onClose }: { item: MenuItem | null; onClose: () => void }) {
+export function OrderDialog({
+  item,
+  onClose,
+  onAddToCart,
+}: {
+  item: MenuItem | null;
+  onClose: () => void;
+  onAddToCart: (line: CartLine) => void;
+}) {
   const [qty, setQty] = useState(1);
   const [variantIdx, setVariantIdx] = useState(0);
   const [phone, setPhone] = useState(WHATSAPP_PRIMARY_NUMBER);
@@ -134,6 +143,22 @@ export function OrderDialog({ item, onClose }: { item: MenuItem | null; onClose:
                 <WhatsAppIcon className="h-5 w-5" />
                 Encomendar pelo WhatsApp
               </a>
+              <button
+                type="button"
+                onClick={() => {
+                  onAddToCart({
+                    id: `${item.id}:${variant?.label ?? ""}`,
+                    name: item.name,
+                    qty,
+                    ...(variant ? { variant: variant.label } : {}),
+                    unit,
+                  });
+                  onClose();
+                }}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-gold/50 px-5 py-3 text-sm font-medium text-gold transition hover:bg-gold/10"
+              >
+                Adicionar ao carrinho
+              </button>
               <p className="mt-3 text-center text-xs text-muted-foreground">
                 Abrirá o WhatsApp ({phone === WHATSAPP_PRIMARY_NUMBER ? "Principal" : "Alternativo"}) com a mensagem pronta.
               </p>

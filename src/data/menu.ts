@@ -103,6 +103,7 @@ export const ADDRESS = "Morro dos Veados, entrada do Matadouro, Benfica, Angola"
 
 export type Variant = { label: string; price: number };
 export type ImageCredit = { title: string; creator: string; license: string; licenseUrl: string; sourceUrl: string };
+export type CartLine = { id: string; name: string; qty: number; variant?: string; unit: number };
 export type MenuItem = {
   id: string;
   name: string;
@@ -1043,6 +1044,28 @@ export function buildWhatsAppUrl(
     ...(o.variant ? [`Variante: ${o.variant}`] : []),
     `Preço unitário: ${formatKz(o.unit)}`,
     `Total: ${formatKz(o.unit * o.qty)}`,
+    "",
+    "Aguardo a confirmação. Obrigado!",
+  ];
+  return `https://wa.me/${number}?text=${encodeURIComponent(lines.join("\n"))}`;
+}
+
+export function buildWhatsAppCartUrl(
+  items: CartLine[],
+  number: string = WHATSAPP_PRIMARY_NUMBER,
+) {
+  const total = items.reduce((sum, item) => sum + item.unit * item.qty, 0);
+  const lines = [
+    "Olá, Villa Sage! Gostaria de encomendar:",
+    "",
+    ...items.flatMap((item, index) => [
+      `${index + 1}. ${item.name}${item.variant ? ` (${item.variant})` : ""}`,
+      `   Quantidade: ${item.qty}`,
+      `   Preço unitário: ${formatKz(item.unit)}`,
+      `   Subtotal: ${formatKz(item.unit * item.qty)}`,
+    ]),
+    "",
+    `Total do pedido: ${formatKz(total)}`,
     "",
     "Aguardo a confirmação. Obrigado!",
   ];

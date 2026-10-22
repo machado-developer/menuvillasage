@@ -11,4 +11,20 @@ describe("App routing", () => {
 
     expect(screen.getByText("Lagosta Grelhada")).toBeInTheDocument();
   });
+
+  it("adds a menu item to the cart and prepares a WhatsApp order", () => {
+    render(<MenuPage />);
+    fireEvent.change(screen.getByPlaceholderText("Pesquisar pratos ou bebidas…"), { target: { value: "lagosta" } });
+    fireEvent.click(screen.getByRole("button", { name: "Encomendar Lagosta Grelhada pelo WhatsApp" }));
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar ao carrinho" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir carrinho com 1 item" }));
+    expect(screen.getByRole("heading", { name: "Carrinho" })).toBeInTheDocument();
+    expect(screen.getByText("Lagosta Grelhada")).toBeInTheDocument();
+
+    const orderLink = screen.getByRole("link", { name: "Enviar pedido pelo WhatsApp" });
+    const message = new URL(orderLink.getAttribute("href")!).searchParams.get("text");
+    expect(message).toContain("Lagosta Grelhada");
+    expect(message).toContain("Total do pedido:");
+  });
 });
